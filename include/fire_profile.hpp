@@ -1,6 +1,6 @@
 #pragma once
 
-#if FIRE_SIMULATOR_USE_TRACY
+#if USE_TRACY
 #include <tracy/Tracy.hpp>
 #define FireProfileTag() ZoneScoped
 #define FireProfileTagBlock(name) ZoneScopedN(name)

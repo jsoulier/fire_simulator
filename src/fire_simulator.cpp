@@ -1,3 +1,5 @@
+#include <cadmium/core/simulation/brute_force_root_coordinator.hpp>
+#include <cadmium/core/simulation/event_driven_root_coordinator.hpp>
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -15,9 +17,6 @@
 #include "fire_grid_coupled.hpp"
 #include "fire_log.hpp"
 #include "fire_model.hpp"
-#include "fire_model_coordinator.hpp"
-#include "fire_model_coordinator_brute_force.hpp"
-#include "fire_model_coordinator_event_driven.hpp"
 #include "fire_model_logger.hpp"
 #include "fire_profile.hpp"
 #include "fire_simulator.hpp"
@@ -125,24 +124,26 @@ bool FireSimulatorRun(const FireSimulatorParams& params)
             FireLog("Building fire simulation couplings");
             model->addCouplings();
         }
-        std::unique_ptr<FireModelCoordinator> coordinator;
+        auto simulate = [&params](auto coordinator)
+        {
+            coordinator.setLogger(std::make_shared<FireModelLogger>(params.OutPath));
+            coordinator.start();
+            FireLog("Started fire simulation");
+            std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
+            coordinator.simulate();
+            std::chrono::duration<double> elapsedTime = std::chrono::steady_clock::now() - startTime;
+            FireLog("Completed fire simulation in {:.3f}s", elapsedTime.count());
+            coordinator.stop();
+        };
         switch (params.CoordinatorType)
         {
         case FireSimulatorCoordinatorType::BruteForce:
-            coordinator = std::make_unique<FireModelCoordinatorBruteForce>(model);
+            simulate(cadmium::BruteForceRootCoordinator(model));
             break;
         case FireSimulatorCoordinatorType::EventDriven:
-            coordinator = std::make_unique<FireModelCoordinatorEventDriven>(model);
+            simulate(cadmium::EventDrivenRootCoordinator(model));
             break;
         }
-        coordinator->SetLogger(std::make_shared<FireModelLogger>(params.OutPath));
-        coordinator->Start();
-        FireLog("Started fire simulation");
-        std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
-        coordinator->Simulate();
-        std::chrono::duration<double> elapsedTime = std::chrono::steady_clock::now() - startTime;
-        FireLog("Completed fire simulation in {:.3f}s", elapsedTime.count());
-        coordinator->Stop();
     }
     catch (const std::exception& e)
     {

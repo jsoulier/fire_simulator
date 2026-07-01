@@ -1,0 +1,3 @@
+[submodule "lib/cadmium"]
+	path = lib/cadmium
+	url = https://github.com/jsoulier/cadmium
