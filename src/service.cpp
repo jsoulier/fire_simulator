@@ -7,11 +7,25 @@
 #include <filesystem>
 #include <format>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "service.hpp"
 
 static const std::filesystem::path kBasePath = SDL_GetBasePath();
+
+static bool IsCategory(ServiceSampleType type)
+{
+    return type == ServiceSampleType::FuelModel;
+}
+
+Service::Raster::Raster()
+    : Width(0)
+    , Height(0)
+    , GeoTransform{}
+    , InverseGeoTransform{}
+{
+}
 
 void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong, double resolution)
 {
@@ -47,7 +61,7 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
             sourceNames.data(),
             nullptr,
             nullptr);
-        if (vrt == nullptr)
+        if (!vrt)
         {
             spdlog::error("Failed to build VRT for {}: {}", GetName(), CPLGetLastErrorMsg());
             return;
@@ -64,7 +78,7 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
         };
         GDALTranslateOptions* options = GDALTranslateOptionsNew(const_cast<char**>(args), nullptr);
         GDALDatasetH dataset = GDALTranslate(filePath.string().c_str(), vrt, options, nullptr);
-        if (dataset == nullptr)
+        if (!dataset)
         {
             spdlog::error("Failed to translate to {} for {}: {}", filePath.string(), GetName(), CPLGetLastErrorMsg());
         }
@@ -77,9 +91,9 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
         VSIUnlink(vrtPath);
     }
     ////////////////////////////////////////////////////////////////////////////
-    // Downsample the high resolution GeoTIFF into a low resolution tile per sample type
+    // Downsample the high resolution GeoTIFF into a low resolution tile per sample type. Extract into a vector per band
     GDALDatasetH highResolution = GDALOpen(filePath.string().c_str(), GA_ReadOnly);
-    if (highResolution == nullptr)
+    if (!highResolution)
     {
         spdlog::error("Failed to open {}: {}", filePath.string(), CPLGetLastErrorMsg());
         return;
@@ -104,17 +118,17 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
         if (!std::filesystem::exists(lowResolutionFilePath))
         {
             const std::string bandString = std::format("{}", GetBand(type));
-            const std::string resampleAlgorithmString = GetResampleAlgorithm(type);
+            const std::string algorithmString = IsCategory(type) ? "mode" : "average";
             const char* args[] =
             {
                 "-b", bandString.c_str(),
                 "-tr", resolutionString.c_str(), resolutionString.c_str(),
-                "-r", resampleAlgorithmString.c_str(),
+                "-r", algorithmString.c_str(),
                 nullptr
             };
             GDALTranslateOptions* options = GDALTranslateOptionsNew(const_cast<char**>(args), nullptr);
             GDALDatasetH lowResolution = GDALTranslate(lowResolutionFilePath.string().c_str(), highResolution, options, nullptr);
-            if (lowResolution == nullptr)
+            if (!lowResolution)
             {
                 spdlog::error("Failed to downsample band {} to {}: {}", bandString, lowResolutionFilePath.string(), CPLGetLastErrorMsg());
             }
@@ -124,13 +138,36 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
             }
             GDALTranslateOptionsFree(options);
         }
+        GDALDatasetH lowResolution = GDALOpen(lowResolutionFilePath.string().c_str(), GA_ReadOnly);
+        if (!lowResolution)
+        {
+            spdlog::error("Failed to open {}: {}", lowResolutionFilePath.string(), CPLGetLastErrorMsg());
+            continue;
+        }
+        Raster raster;
+        raster.Width = GDALGetRasterXSize(lowResolution);
+        raster.Height = GDALGetRasterYSize(lowResolution);
+        if (GDALGetGeoTransform(lowResolution, raster.GeoTransform) != CE_None ||
+            GDALInvGeoTransform(raster.GeoTransform, raster.InverseGeoTransform) == FALSE)
+        {
+            spdlog::error("Failed to get GeoTransform or InvGeoTransform for {}", lowResolutionFilePath.string());
+            GDALClose(lowResolution);
+            continue;
+        }
+        raster.Wkt = GDALGetProjectionRef(lowResolution);
+        raster.Pixels.resize(size_t(raster.Width) * size_t(raster.Height));
+        CPLErr status = GDALRasterIO(
+            GDALGetRasterBand(lowResolution, 1), GF_Read,
+            0, 0, raster.Width, raster.Height,
+            raster.Pixels.data(), raster.Width, raster.Height,
+            IsCategory(type) ? GDT_UInt32 : GDT_Float32, 0, 0);
+        GDALClose(lowResolution);
+        if (status != CE_None)
+        {
+            spdlog::error("Failed to read {}: {}", lowResolutionFilePath.string(), CPLGetLastErrorMsg());
+            continue;
+        }
+        Rasters[type] = std::move(raster);
     }
     GDALClose(highResolution);
-    ////////////////////////////////////////////////////////////////////////////
-    // Load each band's data into a vector and allow the backend to postprocess it
-}
-
-std::string Service::GetResampleAlgorithm(ServiceSampleType type) const
-{
-    return type == ServiceSampleType::FuelModel ? "mode" : "average";
 }

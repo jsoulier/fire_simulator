@@ -1,7 +1,9 @@
 #pragma once
 
+#include <ankerl/unordered_dense.h>
 #include <glm/glm.hpp>
 
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -57,7 +59,20 @@ public:
 private:
     virtual std::vector<std::string> GetSourceURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const = 0;
     virtual int GetBand(ServiceSampleType type) const = 0;
-    std::string GetResampleAlgorithm(ServiceSampleType type) const;
+
+    struct Raster
+    {
+        Raster();
+
+        int Width;
+        int Height;
+        double GeoTransform[6];
+        double InverseGeoTransform[6];
+        std::string Wkt;
+        std::vector<uint32_t> Pixels;
+    };
+
+    ankerl::unordered_dense::map<ServiceSampleType, Raster> Rasters;
 };
 
 std::unique_ptr<Service> ServiceCreateESAWorldCover();
