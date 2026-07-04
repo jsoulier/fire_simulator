@@ -56,10 +56,9 @@ public:
     virtual ServiceSampleType GetSupportedTypes() const = 0;
     void Download(ServiceSampleType types, const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong, double resolution);
     void SetSample(const glm::dvec2& latLong, ServiceSample& sample, ServiceSampleType type);
+    ImTextureRef GetTextureRef(ServiceSampleType type);
     
 protected:
-    // One raster cell: 4 bytes read straight from GDAL. Categorical bands use
-    // U32, continuous bands use F32.
     union Pixel
     {
         uint32_t U32;

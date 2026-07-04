@@ -1,2 +1,3 @@
-build
+*.ini
 CMakeUserPresets.json
+build

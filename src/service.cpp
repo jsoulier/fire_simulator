@@ -214,3 +214,8 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
 void Service::SetSample(const glm::dvec2& latLong, ServiceSample& sample, ServiceSampleType type)
 {
 }
+
+ImTextureRef Service::GetTextureRef(ServiceSampleType type)
+{
+    return Rasters.at(type).Texture;
+}
