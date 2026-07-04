@@ -100,24 +100,48 @@ static void Tick()
     ImGui_ImplSDLRenderer3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
-
+    ImGui::SeparatorText("Services");
+    ImGui::InputDouble("Min Latitude", &state.MinLatLong.x);
+    ImGui::InputDouble("Min Longitude", &state.MinLatLong.y);
+    ImGui::InputDouble("Max Latitude", &state.MaxLatLong.x);
+    ImGui::InputDouble("Max Longitude", &state.MaxLatLong.y);
+    ImGui::InputDouble("Resolution (Degrees)", &state.Resolution);
+    for (auto& [type, index] : state.ServiceIndices)
     {
-        ImGui::SeparatorText("GeoTIFFs");
-        ImGui::InputDouble("Min Latitude", &state.MinLatLong.x);
-        ImGui::InputDouble("Min Longitude", &state.MinLatLong.y);
-        ImGui::InputDouble("Max Latitude", &state.MaxLatLong.x);
-        ImGui::InputDouble("Max Longitude", &state.MaxLatLong.y);
-        ImGui::InputDouble("Resolution (Degrees)", &state.Resolution);
-        for (auto& [type, index] : state.ServiceIndices)
+        if (ImGui::BeginCombo(ServiceSampleTypeToString(type), state.Services[index]->GetName().c_str()))
         {
-
+            for (int i = 0; i < int(state.Services.size()); i++)
+            {
+                if ((int(state.Services[i]->GetSupportedTypes()) & int(type)) == 0)
+                {
+                    continue;
+                }
+                const bool selected = index == i;
+                if (ImGui::Selectable(state.Services[i]->GetName().c_str(), selected))
+                {
+                    index = i;
+                }
+            }
+            ImGui::EndCombo();
         }
-        if (ImGui::Button("Download"))
+        ImTextureRef texture = state.Services[index]->GetTextureRef(type);
+        if (texture.GetTexID() != ImTextureID_Invalid)
         {
-
+            ImGui::Image(texture, ImVec2(float(texture._TexData->Width), float(texture._TexData->Height)));
         }
     }
-
+    if (ImGui::Button("Download"))
+    {
+        ankerl::unordered_dense::map<int, int> serviceIndicesToTypes;
+        for (const auto& [type, index] : state.ServiceIndices)
+        {
+            serviceIndicesToTypes[index] |= int(type);
+        }
+        for (const auto& [index, types] : serviceIndicesToTypes)
+        {
+            state.Services[index]->Download(ServiceSampleType(types), state.MinLatLong, state.MaxLatLong, state.Resolution);
+        }
+    }
     ImGui::Render();
     SDL_SetRenderDrawColorFloat(renderer, 0.1f, 0.1f, 0.1f, 1.0f);
     SDL_RenderClear(renderer);

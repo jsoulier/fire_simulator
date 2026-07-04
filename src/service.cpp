@@ -17,7 +17,27 @@
 
 #include "service.hpp"
 
-static const std::filesystem::path kBasePath = SDL_GetBasePath();
+const char* ServiceSampleTypeToString(ServiceSampleType type)
+{
+    switch (type)
+    {
+    case ServiceSampleType::FuelModel: return "Fuel Model";
+    case ServiceSampleType::Elevation: return "Elevation";
+    case ServiceSampleType::Slope: return "Slope";
+    case ServiceSampleType::Aspect: return "Aspect";
+    case ServiceSampleType::CanopyCover: return "Canopy Cover";
+    case ServiceSampleType::CanopyHeight: return "Canopy Height";
+    case ServiceSampleType::CrownRatio: return "Crown Ratio";
+    case ServiceSampleType::WindSpeed: return "Wind Speed";
+    case ServiceSampleType::WindDirection: return "Wind Direction";
+    case ServiceSampleType::MoistureOneHour: return "Moisture 1 Hour";
+    case ServiceSampleType::MoistureTenHour: return "Moisture 10 Hour";
+    case ServiceSampleType::MoistureHundredHour: return "Moisture 100 Hour";
+    case ServiceSampleType::MoistureLiveHerbaceous: return "Moisture Live Herbaceous";
+    case ServiceSampleType::MoistureLiveWoody: return "Moisture Live Woody";
+    }
+    return "Unknown";
+}
 
 Service::Raster::Raster()
     : Width(0)
@@ -34,7 +54,8 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
     GDALAllRegister();
     ////////////////////////////////////////////////////////////////////////////
     // Download and cache the GeoTIFF. Use a VRT to assemble multiple tiles and clip them to the desired region
-    std::filesystem::path filePath = kBasePath / std::format("{}_{}.{}_{}.{}.tif",
+    std::filesystem::path basePath = SDL_GetBasePath();
+    std::filesystem::path filePath = basePath / std::format("{}_{}.{}_{}.{}.tif",
         GetName(),
         minLatLong.x,
         minLatLong.y,
@@ -54,7 +75,7 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
         {
             sourceNames.push_back(source.c_str());
         }
-        const char* vrtPath = "/vsimem/service_download.vrt";
+        const char* vrtPath = "/vsimem/service.vrt";
         GDALDatasetH vrt = GDALBuildVRT(
             vrtPath,
             sourceNames.size(),
@@ -108,7 +129,7 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
             continue;
         }
         const ServiceSampleType type = ServiceSampleType(typeBit);
-        std::filesystem::path lowResolutionFilePath = kBasePath / std::format("{}_{}.{}_{}.{}_{}_{}.tif",
+        std::filesystem::path lowResolutionFilePath = basePath / std::format("{}_{}.{}_{}.{}_{}_{}.tif",
             GetName(),
             minLatLong.x,
             minLatLong.y,
@@ -206,7 +227,6 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
                 texels[i] = IM_COL32(gray, gray, gray, 255);
             }
         }
-        ImGui::GetPlatformIO().Textures.push_back(texture);
         raster.Texture = texture->GetTexRef();
     }
 }
@@ -217,5 +237,13 @@ void Service::SetSample(const glm::dvec2& latLong, ServiceSample& sample, Servic
 
 ImTextureRef Service::GetTextureRef(ServiceSampleType type)
 {
-    return Rasters.at(type).Texture;
+    const auto it = Rasters.find(type);
+    if (it != Rasters.end())
+    {
+        return it->second.Texture;
+    } 
+    else
+    {
+        return ImTextureRef();
+    }
 }

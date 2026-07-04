@@ -30,6 +30,8 @@ enum class ServiceSampleType
     MoistureLiveWoody = 1 << 13,
 };
 
+const char* ServiceSampleTypeToString(ServiceSampleType type);
+
 struct ServiceSample
 {
     FireFuelModelType FuelModel;
