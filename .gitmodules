@@ -1,3 +1,6 @@
 [submodule "lib/cadmium"]
 	path = lib/cadmium
 	url = https://github.com/jsoulier/cadmium
+[submodule "lib/SDL"]
+	path = lib/SDL
+	url = https://github.com/libsdl-org/SDL
