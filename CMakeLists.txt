@@ -14,7 +14,7 @@ set(GLM_ENABLE ON)
 set(SPDLOG_ENABLE ON)
 set(TRACY_ENABLE ON)
 
-find_package(GDAL REQUIRED)
+find_package(GDAL CONFIG REQUIRED)
 
 add_subdirectory(lib/behave)
 add_subdirectory(lib/cadmium)
@@ -29,7 +29,6 @@ add_executable(fire_simulator
     src/fire_model.cpp
     src/fire_model_logger.cpp
     src/fire_simulator.cpp
-    src/main.cpp
     src/main.cpp
     src/service.cpp
     src/service_esa_worldcover.cpp

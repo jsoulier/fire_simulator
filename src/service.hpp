@@ -50,11 +50,14 @@ class Service
 public:
     virtual ~Service() = default;
     virtual std::string GetName() const = 0;
+    virtual ServiceSampleType GetSupportedTypes() const = 0;
     void Download(ServiceSampleType types, const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong, double resolution);
     virtual void SetSample(const glm::dvec2& latLong, ServiceSample& sample, ServiceSampleType type) = 0;
     
 private:
     virtual std::vector<std::string> GetSourceURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const = 0;
+    virtual int GetBand(ServiceSampleType type) const = 0;
+    std::string GetResampleAlgorithm(ServiceSampleType type) const;
 };
 
-std::unique_ptr<Service> CreateEsaWorldCoverService();
+std::unique_ptr<Service> ServiceCreateESAWorldCover();

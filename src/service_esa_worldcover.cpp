@@ -11,12 +11,17 @@
 static constexpr double kTileDegrees = 3.0;
 static constexpr const char* kURL = "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map";
 
-class ServiceEsaWorldCover : public Service
+class ServiceESAWorldCover : public Service
 {
 public:
     std::string GetName() const override
     {
         return "esa_worldcover";
+    }
+
+    ServiceSampleType GetSupportedTypes() const override
+    {
+        return ServiceSampleType::FuelModel;
     }
 
     std::vector<std::string> GetSourceURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const override
@@ -46,9 +51,14 @@ public:
     void SetSample(const glm::dvec2& latLong, ServiceSample& sample, ServiceSampleType type) override
     {
     }
+
+    int GetBand(ServiceSampleType type) const override
+    {
+        return 1;
+    }
 };
 
-std::unique_ptr<Service> CreateEsaWorldCoverService()
+std::unique_ptr<Service> ServiceCreateESAWorldCover()
 {
-    return std::make_unique<ServiceEsaWorldCover>();
+    return std::make_unique<ServiceESAWorldCover>();
 }

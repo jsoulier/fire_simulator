@@ -1,6 +1,7 @@
 #include <cadmium/core/simulation/brute_force_root_coordinator.hpp>
 #include <cadmium/core/simulation/event_driven_root_coordinator.hpp>
 #include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <chrono>
@@ -15,7 +16,6 @@
 
 #include "fire_fuel_model.hpp"
 #include "fire_grid_coupled.hpp"
-#include "fire_log.hpp"
 #include "fire_model.hpp"
 #include "fire_model_logger.hpp"
 #include "fire_profile.hpp"
@@ -49,7 +49,7 @@ FireSimulatorParams::FireSimulatorParams()
 
 bool FireSimulatorRun(const FireSimulatorParams& params)
 {
-    FireLog("Creating fire simulation parameters");
+    spdlog::info("Creating fire simulation parameters");
     int columns = params.Width;
     int rows = params.Height;
     try
@@ -121,18 +121,18 @@ bool FireSimulatorRun(const FireSimulatorParams& params)
         }
         {
             FireProfileTagBlock("Models");
-            FireLog("Building fire simulation couplings");
+            spdlog::info("Building fire simulation couplings");
             model->addCouplings();
         }
         auto simulate = [&params](auto coordinator)
         {
             coordinator.setLogger(std::make_shared<FireModelLogger>(params.OutPath));
             coordinator.start();
-            FireLog("Started fire simulation");
+            spdlog::info("Started fire simulation");
             std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
             coordinator.simulate();
             std::chrono::duration<double> elapsedTime = std::chrono::steady_clock::now() - startTime;
-            FireLog("Completed fire simulation in {:.3f}s", elapsedTime.count());
+            spdlog::info("Completed fire simulation in {:.3f}s", elapsedTime.count());
             coordinator.stop();
         };
         switch (params.CoordinatorType)
@@ -147,7 +147,7 @@ bool FireSimulatorRun(const FireSimulatorParams& params)
     }
     catch (const std::exception& e)
     {
-        FireLog("fire simulation failed: {}", e.what());
+        spdlog::info("fire simulation failed: {}", e.what());
         return false;
     }
     return true;
