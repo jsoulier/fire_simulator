@@ -2,8 +2,6 @@
 #include <gdal.h>
 #include <gdal_utils.h>
 #include <imgui.h>
-#include <imgui_impl_sdl3.h>
-#include <imgui_impl_sdlrenderer3.h>
 #include <imgui_internal.h>
 #include <ogr_srs_api.h>
 #include <spdlog/spdlog.h>
@@ -60,7 +58,8 @@ Service::Raster::Raster()
 
 void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong, double resolution)
 {
-    SDL_assert((int(types) & ~int(GetSupportedTypes())) == 0);
+    types |= GetRequiredSampleTypes(types);
+    SDL_assert((types & ~GetSupportedTypes()) == ServiceSampleType{});
     GDALAllRegister();
     const char* projPath[] = { SDL_GetBasePath(), nullptr };
     OSRSetPROJSearchPaths(projPath);
@@ -133,22 +132,21 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
         return;
     }
     const std::string resolutionString = std::format("{}", resolution);
+    const std::string lowResolutionBasePath = (basePath / std::format("{}_{}.{}_{}.{}_{}",
+        GetName(),
+        minLatLong.x,
+        minLatLong.y,
+        maxLatLong.x,
+        maxLatLong.y,
+        resolution)).string();
     for (int i = 0; i < 32; i++)
     {
-        const int typeBit = 1 << i;
-        if ((int(types) & typeBit) == 0)
+        const ServiceSampleType type = ServiceSampleType(1 << i);
+        if ((types & type) == ServiceSampleType{})
         {
             continue;
         }
-        const ServiceSampleType type = ServiceSampleType(typeBit);
-        std::filesystem::path lowResolutionFilePath = basePath / std::format("{}_{}.{}_{}.{}_{}_{}.tif",
-            GetName(),
-            minLatLong.x,
-            minLatLong.y,
-            maxLatLong.x,
-            maxLatLong.y,
-            resolution,
-            int(type));
+        std::filesystem::path lowResolutionFilePath = std::format("{}_{}.tif", lowResolutionBasePath, int(type));
         if (!std::filesystem::exists(lowResolutionFilePath))
         {
             const std::string bandString = std::format("{}", GetBand(type));
@@ -178,6 +176,7 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
             spdlog::error("Failed to open {}: {}", lowResolutionFilePath.string(), CPLGetLastErrorMsg());
             continue;
         }
+        Derive(type, lowResolution, lowResolutionBasePath);
         Raster raster;
         raster.Width = GDALGetRasterXSize(lowResolution);
         raster.Height = GDALGetRasterYSize(lowResolution);
@@ -308,4 +307,38 @@ std::string Service::GetKey(const std::string& fileName) const
         key.pop_back();
     }
     return key;
+}
+
+void Service::DEMProcessing(GDALDatasetH elevation, const std::string& basePath, ServiceSampleType type)
+{
+    std::string path = std::format("{}_{}.tif", basePath, int(type));
+    if (std::filesystem::exists(path))
+    {
+        return;
+    }
+    const char* processing;
+    std::vector<const char*> args = { "-of", "GTiff" };
+    if (type == ServiceSampleType::Slope)
+    {
+        static constexpr const char* kDegreesToMetres = "111120";
+        processing = "slope";
+        args.push_back("-s");
+        args.push_back(kDegreesToMetres);
+    }
+    else
+    {
+        processing = "aspect";
+    }
+    args.push_back(nullptr);
+    GDALDEMProcessingOptions* options = GDALDEMProcessingOptionsNew(const_cast<char**>(args.data()), nullptr);
+    GDALDatasetH result = GDALDEMProcessing(path.c_str(), elevation, processing, nullptr, options, nullptr);
+    if (!result)
+    {
+        spdlog::error("Failed to derive {} to {}: {}", processing, path, CPLGetLastErrorMsg());
+    }
+    else
+    {
+        GDALClose(result);
+    }
+    GDALDEMProcessingOptionsFree(options);
 }

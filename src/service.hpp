@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ankerl/unordered_dense.h>
+#include <gdal_fwd.h>
 #include <glm/glm.hpp>
 #include <imgui.h>
 
@@ -12,6 +13,9 @@
 
 #include "fire_fuel_model.hpp"
 
+// The declared order is significant. During a download the requested types are
+// processed in ascending bit order, so a derived type (e.g. Slope/Aspect) must be
+// declared AFTER the type it derives from (Elevation) so its source is produced first.
 enum class ServiceSampleType
 {
     FuelModel = 1 << 0,
@@ -29,6 +33,26 @@ enum class ServiceSampleType
     MoistureLiveHerbaceous = 1 << 12,
     MoistureLiveWoody = 1 << 13,
 };
+
+inline ServiceSampleType operator|(ServiceSampleType a, ServiceSampleType b)
+{
+    return ServiceSampleType(int(a) | int(b));
+}
+
+inline ServiceSampleType operator&(ServiceSampleType a, ServiceSampleType b)
+{
+    return ServiceSampleType(int(a) & int(b));
+}
+
+inline ServiceSampleType operator~(ServiceSampleType a)
+{
+    return ServiceSampleType(~int(a));
+}
+
+inline ServiceSampleType& operator|=(ServiceSampleType& a, ServiceSampleType b)
+{
+    return a = a | b;
+}
 
 struct ServiceSample
 {
@@ -69,6 +93,7 @@ public:
     virtual ~Service() = default;
     virtual std::string GetName() const = 0;
     virtual ServiceSampleType GetSupportedTypes() const = 0;
+    virtual ServiceSampleType GetRequiredSampleTypes(ServiceSampleType types) const { return {}; }
     void Download(ServiceSampleType types, const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong, double resolution);
     ServicePixel GetPixel(ServiceSampleType type, const glm::dvec2& latLong) const;
     ServicePixel GetPixel(ServiceSampleType type, int x, int y) const;
@@ -78,7 +103,9 @@ protected:
     std::string GetKey(const std::string& fileName) const;
     virtual std::vector<std::string> GetSourceURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const = 0;
     virtual int GetBand(ServiceSampleType type) const = 0;
+    virtual void Derive(ServiceSampleType type, GDALDatasetH lowResolution, const std::string& basePath) {}
     virtual void PostProcess(ServiceSampleType type, std::vector<ServicePixel>& pixels) {}
+    void DEMProcessing(GDALDatasetH elevation, const std::string& basePath, ServiceSampleType type);
 
     struct Raster
     {

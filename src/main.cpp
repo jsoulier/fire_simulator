@@ -26,6 +26,8 @@ struct State
         Services.emplace_back(ServiceCreateOpenTopography());
         ServiceIndices[ServiceSampleType::FuelModel] = 0;
         ServiceIndices[ServiceSampleType::Elevation] = 1;
+        ServiceIndices[ServiceSampleType::Slope] = 1;
+        ServiceIndices[ServiceSampleType::Aspect] = 1;
     }
 
     glm::dvec2 MinLatLong;
@@ -117,7 +119,7 @@ static void Tick()
         {
             for (int i = 0; i < int(state.Services.size()); i++)
             {
-                if ((int(state.Services[i]->GetSupportedTypes()) & int(type)) == 0)
+                if ((state.Services[i]->GetSupportedTypes() & type) == ServiceSampleType{})
                 {
                     continue;
                 }
@@ -132,14 +134,14 @@ static void Tick()
     }
     if (ImGui::Button("Download"))
     {
-        ankerl::unordered_dense::map<int, int> serviceIndicesToTypes;
+        ankerl::unordered_dense::map<int, ServiceSampleType> serviceIndicesToTypes;
         for (const auto& [type, index] : state.ServiceIndices)
         {
-            serviceIndicesToTypes[index] |= int(type);
+            serviceIndicesToTypes[index] |= type;
         }
         for (const auto& [index, types] : serviceIndicesToTypes)
         {
-            state.Services[index]->Download(ServiceSampleType(types), state.MinLatLong, state.MaxLatLong, state.Resolution);
+            state.Services[index]->Download(types, state.MinLatLong, state.MaxLatLong, state.Resolution);
         }
     }
     if (ImGui::Begin("Image Debug"))

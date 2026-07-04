@@ -1,5 +1,6 @@
 // https://portal.opentopography.org/apidocs/#/Public/getGlobalDem
 
+#include <filesystem>
 #include <format>
 #include <memory>
 #include <string>
@@ -19,6 +20,11 @@ public:
     }
 
     ServiceSampleType GetSupportedTypes() const override
+    {
+        return ServiceSampleType::Elevation | ServiceSampleType::Slope | ServiceSampleType::Aspect;
+    }
+
+    ServiceSampleType GetRequiredSampleTypes(ServiceSampleType types) const override
     {
         return ServiceSampleType::Elevation;
     }
@@ -46,6 +52,15 @@ public:
     int GetBand(ServiceSampleType type) const override
     {
         return 1;
+    }
+
+    void Derive(ServiceSampleType type, GDALDatasetH lowResolution, const std::string& basePath) override
+    {
+        if (type == ServiceSampleType::Elevation)
+        {
+            DEMProcessing(lowResolution, basePath, ServiceSampleType::Slope);
+            DEMProcessing(lowResolution, basePath, ServiceSampleType::Aspect);
+        }
     }
 };
 
