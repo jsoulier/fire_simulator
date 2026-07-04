@@ -27,6 +27,7 @@ add_subdirectory(lib/spdlog)
 add_subdirectory(lib/tracy)
 
 add_executable(fire_simulator
+    src/console.cpp
     src/fire_fuel_model.cpp
     src/fire_model.cpp
     src/fire_model_logger.cpp

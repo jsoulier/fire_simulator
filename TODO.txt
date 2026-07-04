@@ -7,6 +7,7 @@ usability:
 - load results crashes if you don't download beforehand
 - geotags so users can specify the named location rather then lat/long
   - is there an offline database of city to lat/long?
+- run simulation and results on worker
 
 code:
 - refactor main into class

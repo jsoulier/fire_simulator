@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "console.hpp"
 #include "fire_model.hpp"
 #include "fire_results.hpp"
 #include "fire_simulator.hpp"
@@ -68,6 +69,7 @@ struct State
 
 static SDL_Window* window;
 static SDL_Renderer* renderer;
+static Console console;
 static State state;
 static FireResults results;
 static float resultsTime;
@@ -342,6 +344,11 @@ static void Tick()
     if (ImGui::Begin("Image"))
     {
         DrawImage();
+    }
+    ImGui::End();
+    if (ImGui::Begin("Console"))
+    {
+        console.RenderImGui();
     }
     ImGui::End();
     ImGui::Render();
