@@ -1,6 +1,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <ankerl/unordered_dense.h>
+#include <geo_names_imgui.hpp>
 #include <glm/glm.hpp>
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
@@ -65,6 +66,7 @@ struct State
     FireSimulatorCoordinatorType CoordinatorType;
     glm::ivec2 Ignition;
     ServiceSampleType ImageDebugSampleType;
+    char LocationSearch[128] = {};
 };
 
 static SDL_Window* window;
@@ -205,6 +207,13 @@ static void Simulate()
 
 static void DrawGeneral()
 {
+    if (std::optional<GeoNames> location = ImGuiGeoNames(state.LocationSearch, sizeof(state.LocationSearch)))
+    {
+        const glm::dvec2 extent = (state.MaxLatLong - state.MinLatLong) * 0.5;
+        const glm::dvec2 center{location->Latitude, location->Longitude};
+        state.MinLatLong = center - extent;
+        state.MaxLatLong = center + extent;
+    }
     ImGui::InputDouble("Min Latitude", &state.MinLatLong.x);
     ImGui::InputDouble("Min Longitude", &state.MinLatLong.y);
     ImGui::InputDouble("Max Latitude", &state.MaxLatLong.x);

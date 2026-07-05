@@ -4,3 +4,9 @@
 [submodule "lib/SDL"]
 	path = lib/SDL
 	url = https://github.com/libsdl-org/SDL
+[submodule "lib/geo_names"]
+	path = lib/geo_names
+	url = https://github.com/jsoulier/geo_names
+[submodule "lib/vcpkg"]
+	path = lib/vcpkg
+	url = https://github.com/microsoft/vcpkg

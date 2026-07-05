@@ -1,7 +1,5 @@
 # Fire Simulator
 
-![](doc/image1.png)
-
 ### Building
 
 Add the following to `CMakeUserPresets.json` and replace the path accordingly:

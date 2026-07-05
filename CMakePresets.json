@@ -1,19 +1,28 @@
 {
-    "version": 3,
-    "cmakeMinimumRequired": {
-        "major": 3,
-        "minor": 24,
-        "patch": 0
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "common",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/lib/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      }
     },
-    "configurePresets": [
-        {
-            "name": "default",
-            "displayName": "Default (vcpkg)",
-            "binaryDir": "${sourceDir}/build",
-            "cacheVariables": {
-                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-                "VCPKG_TARGET_TRIPLET": "x64-windows"
-            }
-        }
-    ]
+    {
+      "name": "msvc",
+      "inherits": "common",
+      "generator": "Visual Studio 17 2022"
+    },
+    {
+      "name": "clang",
+      "inherits": "common",
+      "generator": "Unix Makefiles"
+    }
+  ]
 }
