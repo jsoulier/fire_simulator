@@ -10,11 +10,13 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <format>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <limits>
 #include <memory>
 #include <string>
@@ -25,7 +27,9 @@
 #include "fire_model.hpp"
 #include "fire_results.hpp"
 #include "fire_simulator.hpp"
+#include "future.hpp"
 #include "service.hpp"
+#include "worker.hpp"
 
 static const std::filesystem::path kBasePath = SDL_GetBasePath();
 static const std::filesystem::path kFireSimulatorPath = kBasePath / "fire_simulator_results.csv";
@@ -66,14 +70,16 @@ struct State
     FireSimulatorCoordinatorType CoordinatorType;
     glm::ivec2 Ignition;
     ServiceSampleType ImageDebugSampleType;
-    char LocationSearch[128] = {};
 };
 
 static SDL_Window* window;
 static SDL_Renderer* renderer;
 static Console console;
 static State state;
-static FireResults results;
+static Worker worker;
+static Future<FireResults> pendingResults;
+static std::vector<FireResults> results;
+static int currentResult = -1;
 static float resultsTime;
 
 static bool Init()
@@ -161,7 +167,7 @@ static void Simulate()
         };
     };
     int fuelIndex = state.ServiceIndices.at(ServiceSampleType::FuelModel);
-    std::unique_ptr<Service>& fuelService = state.Services[fuelIndex];
+    Service* fuelService = state.Services[fuelIndex].get();
     glm::ivec2 size = fuelService->GetSize(ServiceSampleType::FuelModel);
     SDL_assert(size.x > 0 && size.y > 0);
     FireSimulatorParams params;
@@ -175,7 +181,7 @@ static void Simulate()
     {
         return x == ignition.x && y == ignition.y;
     };
-    params.FuelModel = [&fuelService](int x, int y)
+    params.FuelModel = [fuelService](int x, int y)
     {
         return FireFuelModelType(fuelService->GetPixel(ServiceSampleType::FuelModel, x, y).U32);
     };
@@ -201,13 +207,20 @@ static void Simulate()
     params.MoistureLiveHerbaceous = getPixel(ServiceSampleType::MoistureLiveHerbaceous);
     params.MoistureLiveWoody = getPixel(ServiceSampleType::MoistureLiveWoody);
     params.OutPath = kFireSimulatorPath.string();
-    FireSimulatorRun(params);
-    results.Load(kFireSimulatorPath, size, resultsTime);
+    pendingResults = worker.Submit([params = std::move(params)]()
+    {
+        FireResults result;
+        if (FireSimulatorRun(params))
+        {
+            result.Load(params.OutPath, {params.Width, params.Height});
+        }
+        return result;
+    });
 }
 
 static void DrawGeneral()
 {
-    if (std::optional<GeoNames> location = ImGuiGeoNames(state.LocationSearch, sizeof(state.LocationSearch)))
+    if (std::optional<GeoNames> location = GetImGuiGeoNames())
     {
         const glm::dvec2 extent = (state.MaxLatLong - state.MinLatLong) * 0.5;
         const glm::dvec2 center{location->Latitude, location->Longitude};
@@ -254,6 +267,7 @@ static void DrawGeneral()
     {
         state.CoordinatorType = FireSimulatorCoordinatorType(coordinator);
     }
+    ImGui::BeginDisabled(worker.IsRunning());
     if (ImGui::Button("Download"))
     {
         Download();
@@ -263,6 +277,7 @@ static void DrawGeneral()
         Download();
         Simulate();
     }
+    ImGui::EndDisabled();
 }
 
 static void DrawImage()
@@ -278,16 +293,42 @@ static void DrawImage()
         }
         ImGui::EndCombo();
     }
+    ImGui::BeginDisabled(worker.IsRunning());
     if (ImGui::Button("Load Results"))
     {
         glm::ivec2 size = state.Services[state.ServiceIndices.at(ServiceSampleType::FuelModel)]->GetSize(ServiceSampleType::FuelModel);
-        results.Load(kFireSimulatorPath, size, resultsTime);
-    }
-    if (results.GetMaxTime() > 0.0f)
-    {
-        if (ImGui::SliderFloat("Time", &resultsTime, 0.0f, results.GetMaxTime()))
+        pendingResults = worker.Submit([size]()
         {
-            results.Update(resultsTime);
+            FireResults result;
+            result.Load(kFireSimulatorPath, size);
+            return result;
+        });
+    }
+    ImGui::EndDisabled();
+    ImGui::BeginChild("Results", ImVec2(140.0f, 0.0f), ImGuiChildFlags_Borders | ImGuiChildFlags_ResizeX);
+    for (int i = 0; i < int(results.size()); i++)
+    {
+        std::string label = std::format("Result {}", i);
+        if (ImGui::Selectable(label.c_str(), currentResult == i))
+        {
+            currentResult = i;
+            resultsTime = results[i].GetMaxTime();
+            results[i].Update(resultsTime);
+        }
+    }
+    ImGui::EndChild();
+    ImGui::SameLine();
+    ImGui::BeginGroup();
+    FireResults* current = nullptr;
+    if (currentResult >= 0 && currentResult < int(results.size()))
+    {
+        current = &results[currentResult];
+    }
+    if (current && current->GetMaxTime() > 0.0f)
+    {
+        if (ImGui::SliderFloat("Time", &resultsTime, 0.0f, current->GetMaxTime()))
+        {
+            current->Update(resultsTime);
         }
     }
     std::unique_ptr<Service>& service = state.Services[state.ServiceIndices.at(state.ImageDebugSampleType)];
@@ -300,10 +341,10 @@ static void DrawImage()
         float height = float(texture._TexData->Height);
         float scale = std::min(region.x / width, region.y / height);
         ImGui::Image(texture, ImVec2(width * scale, height * scale));
-        if (results.GetTexture() && results.GetTexture()->GetTexID() != ImTextureID_Invalid)
+        if (current && current->GetTexture() && current->GetTexture()->GetTexID() != ImTextureID_Invalid)
         {
             ImVec2 end(position.x + width * scale, position.y + height * scale);
-            ImGui::GetWindowDrawList()->AddImage(results.GetTexture()->GetTexRef(), position, end);
+            ImGui::GetWindowDrawList()->AddImage(current->GetTexture()->GetTexRef(), position, end);
         }
         if (ImGui::IsItemHovered())
         {
@@ -338,10 +379,23 @@ static void DrawImage()
             ImGui::GetWindowDrawList()->AddCircleFilled(origin, 4.0f, IM_COL32(255, 0, 0, 255));
         }
     }
+    ImGui::EndGroup();
+}
+
+static void PollWorker()
+{
+    if (pendingResults.IsReady())
+    {
+        results.push_back(pendingResults.Get());
+        currentResult = int(results.size()) - 1;
+        resultsTime = results[currentResult].GetMaxTime();
+        results[currentResult].Update(resultsTime);
+    }
 }
 
 static void Tick()
 {
+    PollWorker();
     ImGui_ImplSDLRenderer3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();

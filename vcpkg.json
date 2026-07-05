@@ -1,5 +1,16 @@
 {
   "dependencies": [
-    "gdal"
+    {
+      "name": "gdal",
+      "default-features": false,
+      "features": [
+        "jpeg",
+        "lerc",
+        "lzma",
+        "png",
+        "webp",
+        "zstd"
+      ]
+    }
   ]
 }

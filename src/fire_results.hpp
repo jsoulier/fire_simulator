@@ -10,7 +10,7 @@ class FireResults
 {
 public:
     FireResults();
-    void Load(const std::filesystem::path& path, const glm::ivec2& size, float time);
+    void Load(const std::filesystem::path& path, glm::ivec2 size);
     void Update(float time);
     float GetMaxTime() const;
     ImTextureData* GetTexture();

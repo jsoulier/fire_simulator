@@ -1,6 +1,15 @@
 cmake_minimum_required(VERSION 3.24)
 project(fire_simulator)
 
+set(BINARY_DIR ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BINARY_DIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${BINARY_DIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${BINARY_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BINARY_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${BINARY_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${BINARY_DIR})
+make_directory(${BINARY_DIR})
+
 if(WIN32)
     set(VCPKG_TARGET_TRIPLET x64-windows-static)
 elseif(UNIX)
@@ -8,13 +17,13 @@ elseif(UNIX)
 endif()
 set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/lib/vcpkg/scripts/buildsystems/vcpkg.cmake")
 
+find_package(GDAL CONFIG REQUIRED)
+find_file(PROJ_DB NAMES proj.db PATH_SUFFIXES share/proj REQUIRED)
+configure_file(${PROJ_DB} ${BINARY_DIR}/proj.db COPYONLY)
+
 set(GLM_ENABLE ON)
 set(SPDLOG_ENABLE ON)
 set(TRACY_ENABLE ON)
-
-find_package(GDAL CONFIG REQUIRED)
-find_file(PROJ_DB NAMES proj.db PATH_SUFFIXES share/proj REQUIRED)
-configure_file(${PROJ_DB} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/proj.db COPYONLY)
 
 add_subdirectory(lib/SDL)
 add_subdirectory(lib/behave)
@@ -37,6 +46,7 @@ add_executable(fire_simulator
     src/service_custom.cpp
     src/service_esa_worldcover.cpp
     src/service_open_topography.cpp
+    src/worker.cpp
 )
 target_include_directories(fire_simulator PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(fire_simulator PRIVATE

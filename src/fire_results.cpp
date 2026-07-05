@@ -26,7 +26,7 @@ FireResults::FireResults()
 {
 }
 
-void FireResults::Load(const std::filesystem::path& path, const glm::ivec2& size, float time)
+void FireResults::Load(const std::filesystem::path& path, glm::ivec2 size)
 {
     std::ifstream file(path);
     if (!file)
@@ -67,19 +67,9 @@ void FireResults::Load(const std::filesystem::path& path, const glm::ivec2& size
         }
         MaxTime = std::max(MaxTime, time);
     }
-    if (Texture && (Texture->Width != Width || Texture->Height != Height))
-    {
-        ImGui::UnregisterUserTexture(Texture);
-        IM_DELETE(Texture);
-        Texture = nullptr;
-    }
-    if (!Texture)
-    {
-        Texture = IM_NEW(ImTextureData)();
-        Texture->Create(ImTextureFormat_RGBA32, Width, Height);
-        ImGui::RegisterUserTexture(Texture);
-    }
-    Update(time);
+    Texture = IM_NEW(ImTextureData)();
+    Texture->Create(ImTextureFormat_RGBA32, Width, Height);
+    ImGui::RegisterUserTexture(Texture);
 }
 
 void FireResults::Update(float time)
