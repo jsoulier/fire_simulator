@@ -84,8 +84,11 @@ void FireResults::Update(float time)
             if (time < Burns[i])
             {
                 float range = Burns[i] - Ignitions[i];
-                SDL_assert(std::isfinite(range) && range > 0.0f);
-                float alpha = std::clamp((time - Ignitions[i]) / range, 0.0f, 1.0f);
+                float alpha = 0.0f;
+                if (std::isfinite(range) && range > 0.0f)
+                {
+                    alpha = std::clamp((time - Ignitions[i]) / range, 0.0f, 1.0f);
+                }
                 uint8_t g = uint8_t(230.0f - 200.0f * alpha);
                 uint8_t b = uint8_t(60.0f - 60.0f * alpha);
                 color = IM_COL32(255, g, b, 220);

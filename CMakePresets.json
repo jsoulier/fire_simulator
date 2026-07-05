@@ -17,12 +17,22 @@
     {
       "name": "msvc",
       "inherits": "common",
-      "generator": "Visual Studio 17 2022"
+      "generator": "Ninja"
     },
     {
       "name": "clang",
       "inherits": "common",
       "generator": "Unix Makefiles"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "msvc",
+      "configurePreset": "msvc"
+    },
+    {
+      "name": "clang",
+      "configurePreset": "clang"
     }
   ]
 }

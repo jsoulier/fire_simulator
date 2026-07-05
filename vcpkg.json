@@ -4,6 +4,7 @@
       "name": "gdal",
       "default-features": false,
       "features": [
+        "curl",
         "jpeg",
         "lerc",
         "lzma",

@@ -10,13 +10,6 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${BINARY_DIR})
 make_directory(${BINARY_DIR})
 
-if(WIN32)
-    set(VCPKG_TARGET_TRIPLET x64-windows-static)
-elseif(UNIX)
-    set(VCPKG_TARGET_TRIPLET x64-linux)
-endif()
-set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/lib/vcpkg/scripts/buildsystems/vcpkg.cmake")
-
 find_package(GDAL CONFIG REQUIRED)
 find_file(PROJ_DB NAMES proj.db PATH_SUFFIXES share/proj REQUIRED)
 configure_file(${PROJ_DB} ${BINARY_DIR}/proj.db COPYONLY)
@@ -60,3 +53,10 @@ target_link_libraries(fire_simulator PRIVATE
     spdlog::spdlog
 )
 set_target_properties(fire_simulator PROPERTIES CXX_STANDARD 23)
+
+# For some reason GDAL and dependencies aren't being placed next to the executable
+add_custom_command(TARGET fire_simulator POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/$<IF:$<CONFIG:Debug>,debug/bin,bin>
+        $<TARGET_FILE_DIR:fire_simulator>
+)
