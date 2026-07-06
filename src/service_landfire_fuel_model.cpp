@@ -35,6 +35,7 @@ public:
     {
         for (ServicePixel& pixel : pixels)
         {
+            // no data (-9999) gets converted to 0 so we guard against that here
             if (pixel.U32 < kFireFuelModelNB1 || pixel.U32 > kFireFuelModelSB4)
             {
                 pixel.U32 = kFireFuelModelNB9;

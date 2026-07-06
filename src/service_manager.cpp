@@ -21,8 +21,6 @@ ServiceManager::ServiceManager()
     Services.emplace_back(ServiceCreateESAWorldCover());
     Services.emplace_back(ServiceCreateOpenTopography());
     Services.emplace_back(ServiceCreateCustom());
-    // LANDFIRE (US only) appended after Custom so the default indices above are
-    // unchanged; selectable per sample type from the combos in RenderImGui.
     Services.emplace_back(ServiceCreateLandfireFuelModel());
     Services.emplace_back(ServiceCreateLandfireElevation());
     Services.emplace_back(ServiceCreateLandfireSlope());

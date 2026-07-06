@@ -186,7 +186,7 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
         std::filesystem::path lowResolutionFilePath = std::format("{}_{}.tif", lowResolutionBasePath, int(type));
         if (!std::filesystem::exists(lowResolutionFilePath))
         {
-            Timer downsampleTimer(std::format("{} {} downsample", GetName(), ServiceSampleTypeToString(type)));
+            TimerBlock(std::format("{} {} downsample", GetName(), ServiceSampleTypeToString(type)));
             const std::string bandString = std::format("{}", GetBand(type));
             const std::string algorithmString = ServiceSampleTypeToPixelType(type) == ServicePixelType::U32 ? "mode" : "average";
             const char* args[] =
@@ -215,12 +215,12 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
             continue;
         }
         {
-            Timer deriveTimer(std::format("{} {} derive", ServiceSampleTypeToString(type), GetName()));
+            TimerBlock(std::format("{} {} derive", GetName(), ServiceSampleTypeToString(type)));
             Derive(type, lowResolution, lowResolutionBasePath);
         }
         Raster raster;
         {
-            Timer rasterTimer(std::format("{} {} raster", ServiceSampleTypeToString(type), GetName()));
+            TimerBlock(std::format("{} {} raster", GetName(), ServiceSampleTypeToString(type)));
             raster.Width = GDALGetRasterXSize(lowResolution);
             raster.Height = GDALGetRasterYSize(lowResolution);
             if (GDALGetGeoTransform(lowResolution, raster.GeoTransform) != CE_None ||
@@ -245,7 +245,7 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
             }
         }
         {
-            Timer postProcessTimer(std::format("{} {} post process", ServiceSampleTypeToString(type), GetName()));
+            TimerBlock(std::format("{} {} post process", GetName(), ServiceSampleTypeToString(type)));
             PostProcess(type, raster.Pixels);
         }
         Rasters[type] = std::move(raster);
@@ -256,7 +256,7 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
     {
         for (auto& [type, raster] : Rasters)
         {
-            Timer textureTimer(std::format("{} {} texture", ServiceSampleTypeToString(type), GetName()));
+            TimerBlock(std::format("{} {} texture", GetName(), ServiceSampleTypeToString(type)));
             ImTextureData* texture = IM_NEW(ImTextureData)();
             texture->Create(ImTextureFormat_RGBA32, raster.Width, raster.Height);
             uint32_t* texels = reinterpret_cast<uint32_t*>(texture->GetPixels());
