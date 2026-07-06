@@ -28,6 +28,7 @@
 #include "fire_results.hpp"
 #include "fire_simulator.hpp"
 #include "future.hpp"
+#include "image_viewer.hpp"
 #include "service_manager.hpp"
 #include "worker.hpp"
 
@@ -43,6 +44,7 @@ static float resultsTimestamp;
 static ServiceSampleType imageDebugSampleType = ServiceSampleType::FuelModel;
 static glm::ivec2 ignition;
 static FireSimulatorCoordinatorType coordinator = FireSimulatorCoordinatorType::EventDriven;
+static ImageViewer imageViewer;
 
 static bool Init()
 {
@@ -111,11 +113,12 @@ static void Download()
 
 static void Simulate()
 {
+    ankerl::unordered_dense::set<glm::ivec2> igniting = imageViewer.GetSelected();
     FireSimulatorParams params;
     params.CoordinatorType = coordinator;
-    params.Igniting = [](int x, int y)
+    params.Igniting = [&igniting](int x, int y)
     {
-        return x == ignition.x && y == ignition.y;
+        return igniting.contains(glm::ivec2{x, y});
     };
     pendingResults = serviceManager.Simulate(worker, params);
 }
@@ -177,53 +180,12 @@ static void DrawImage()
         }
     }
     std::unique_ptr<Service>& service = serviceManager.GetService(imageDebugSampleType);
-    ImTextureRef texture = service->GetTextureRef(imageDebugSampleType);
-    if (texture.GetTexID() != ImTextureID_Invalid)
+    ImTextureRef overlay;
+    if (current && current->GetTexture() && current->GetTexture()->GetTexID() != ImTextureID_Invalid)
     {
-        const ImVec2 position = ImGui::GetCursorScreenPos();
-        const ImVec2 region = ImGui::GetContentRegionAvail();
-        float width = float(texture._TexData->Width);
-        float height = float(texture._TexData->Height);
-        float scale = std::min(region.x / width, region.y / height);
-        ImGui::Image(texture, ImVec2(width * scale, height * scale));
-        if (current && current->GetTexture() && current->GetTexture()->GetTexID() != ImTextureID_Invalid)
-        {
-            ImVec2 end(position.x + width * scale, position.y + height * scale);
-            ImGui::GetWindowDrawList()->AddImage(current->GetTexture()->GetTexRef(), position, end);
-        }
-        if (ImGui::IsItemHovered())
-        {
-            ImVec2 mouse = ImGui::GetMousePos();
-            int x = (mouse.x - position.x) / scale;
-            int y = (mouse.y - position.y) / scale;
-            if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
-            {
-                ignition = {x, y};
-            }
-            ServicePixel pixel = service->GetPixel(imageDebugSampleType, x, y);
-            ServicePixelType pixelType = ServiceSampleTypeToPixelType(imageDebugSampleType);
-            if (pixelType == ServicePixelType::U32)
-            {
-                ImGui::SetTooltip("%u", pixel.U32);
-            }
-            else if (pixelType == ServicePixelType::F32)
-            {
-                ImGui::SetTooltip("%.3f", pixel.F32);
-            }
-            else
-            {
-                SDL_assert(false);
-            }
-        }
-        if (ignition.x >= 0 && ignition.x < int(width) &&
-            ignition.y >= 0 && ignition.y < int(height))
-        {
-            ImVec2 origin(
-                position.x + (ignition.x + 0.5f) * scale,
-                position.y + (ignition.y + 0.5f) * scale);
-            ImGui::GetWindowDrawList()->AddCircleFilled(origin, 4.0f, IM_COL32(255, 0, 0, 255));
-        }
+        overlay = current->GetTexture()->GetTexRef();
     }
+    imageViewer.Draw(service, imageDebugSampleType, overlay);
     ImGui::EndGroup();
 }
 

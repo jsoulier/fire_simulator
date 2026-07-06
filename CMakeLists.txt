@@ -34,6 +34,7 @@ add_executable(fire_simulator
     src/fire_model_logger.cpp
     src/fire_results.cpp
     src/fire_simulator.cpp
+    src/image_viewer.cpp
     src/main.cpp
     src/service.cpp
     src/service_custom.cpp
@@ -62,9 +63,10 @@ target_link_libraries(fire_simulator PRIVATE
     imgui
     spdlog::spdlog
 )
+target_compile_definitions(fire_simulator PRIVATE GLM_ENABLE_EXPERIMENTAL)
 set_target_properties(fire_simulator PROPERTIES CXX_STANDARD 23)
 
-# For some reason GDAL and dependencies aren't being placed next to the executable
+# for some reason GDAL and dependencies aren't being placed next to the executable
 add_custom_command(TARGET fire_simulator POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/$<IF:$<CONFIG:Debug>,debug/bin,bin>

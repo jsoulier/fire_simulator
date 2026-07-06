@@ -1,20 +1,5 @@
 usability:
-- vector of FireResults
-- hook into GDAL progress for downloads/translates
-- threaded downloaded
 - serialize state using json macros
 - load results crashes if you don't download beforehand
 - better defaults on custom
-
-fuel model backends:
-esa worldcover (current) sucks: 11 land cover classes crosswalked to ~8 fuel
-models, no canopy data. biggest accuracy limitation rn. a backend fits if it's
-a gdal-readable raster over http (COG on s3 = /vsicurl works) + a PostProcess
-crosswalk to FireFuelModelType.
-- Copernicus LC100 (global) -- 23 classes @ 100m + fractional cover
-  (tree/shrub/grass %). best global upgrade over esa. coarser tho.
-- CORINE (europe) -- 44 classes @ 100m, way finer forest types. europe only.
-- NLCD (US) -- 30m ~16 classes, has fuel crosswalks. weaker than landfire.
-- ESRI 10m / dynamic world -- 9 classes, fewer than esa. skip.
-plan: add LANDFIRE + default for US. keep esa as global fallback. maybe LC100
-for better global. NRCan for canada.
+- show used memory
