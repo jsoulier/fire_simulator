@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "auth.hpp"
 #include "service.hpp"
 
 static constexpr const char* kURL = "https://portal.opentopography.org/API/globaldem";
@@ -34,9 +35,9 @@ public:
         return ServiceSampleType::Elevation;
     }
 
-    std::vector<std::string> GetSourceURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const override
+    std::vector<std::string> GetURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const override
     {
-        const std::string apiKey = GetKey("open_topography.txt");
+        const std::string apiKey = AuthGetKey("open_topography.txt");
         if (apiKey.empty())
         {
             return {};

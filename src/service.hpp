@@ -135,8 +135,7 @@ public:
     ImTextureRef GetTextureRef(ServiceSampleType type);
 
 protected:
-    std::string GetKey(const std::string& fileName) const;
-    virtual std::vector<std::string> GetSourceURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const { return {}; }
+    virtual std::vector<std::string> GetURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const { return {}; }
     virtual int GetBand(ServiceSampleType type) const { return 0; }
     virtual void Derive(ServiceSampleType type, GDALDatasetH lowResolution, const std::string& basePath) {}
     virtual void PostProcess(ServiceSampleType type, std::vector<ServicePixel>& pixels) {}

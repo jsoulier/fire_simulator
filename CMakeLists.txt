@@ -28,14 +28,19 @@ add_subdirectory(lib/spdlog)
 add_subdirectory(lib/tracy)
 
 add_executable(fire_simulator
+    src/auth.cpp
     src/console.cpp
+    src/date.cpp
     src/fire_fuel_model.cpp
     src/fire_model.cpp
     src/fire_model_logger.cpp
     src/fire_results.cpp
     src/fire_simulator.cpp
+    src/http.cpp
     src/image_viewer.cpp
     src/main.cpp
+    src/reference.cpp
+    src/reference_firms.cpp
     src/service.cpp
     src/service_custom.cpp
     src/service_esa_worldcover.cpp

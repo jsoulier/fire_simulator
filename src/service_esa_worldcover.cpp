@@ -29,7 +29,7 @@ public:
         return ServiceSampleType::FuelModel;
     }
 
-    std::vector<std::string> GetSourceURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const override
+    std::vector<std::string> GetURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const override
     {
         // ESA WorldCover is distributed as 3x3 degree GeoTIFFs
         glm::dvec2 cornerMinLatLong;

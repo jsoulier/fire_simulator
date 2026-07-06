@@ -72,7 +72,7 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
     if (!std::filesystem::exists(filePath))
     {
         TimerBlock(std::format("{} vrt", GetName()));
-        std::vector<std::string> sources = GetSourceURLs(minLatLong, maxLatLong);
+        std::vector<std::string> sources = GetURLs(minLatLong, maxLatLong);
         if (sources.empty())
         {
             return;
@@ -352,29 +352,6 @@ ImTextureRef Service::GetTextureRef(ServiceSampleType type)
     {
         return ImTextureRef();
     }
-}
-
-std::string Service::GetKey(const std::string& fileName) const
-{
-    const char* home = SDL_GetUserFolder(SDL_FOLDER_HOME);
-    if (!home)
-    {
-        spdlog::error("Failed to find home directory for key {}: {}", fileName, SDL_GetError());
-        return {};
-    }
-    std::filesystem::path path = std::filesystem::path(home) / fileName;
-    std::ifstream file(path);
-    if (!file)
-    {
-        spdlog::error("Failed to open key file {}", path.string());
-        return {};
-    }
-    std::string key((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    while (!key.empty() && std::isspace(key.back()))
-    {
-        key.pop_back();
-    }
-    return key;
 }
 
 void Service::DEMProcessing(GDALDatasetH elevation, const std::string& basePath, ServiceSampleType type)
