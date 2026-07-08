@@ -29,15 +29,15 @@ public:
     }
 
 protected:
-    std::vector<std::string> GetURLs(
-        const glm::dvec2& minLatLong,
-        const glm::dvec2& maxLatLong,
-        const Date& startDate,
-        const Date& endDate) const override
+    std::vector<std::string> GetURLs(const ReferenceDatabase& database) const override
     {
+        const glm::dvec2 minLatLong = database.GetMinLatLong();
+        const glm::dvec2 maxLatLong = database.GetMaxLatLong();
+        const Date startDate = database.GetStartDate();
+        const Date endDate = database.GetEndDate();
         return
         {
-            std::format("{}?category=wildfires&bbox={},{},{},{}&start={}&end={}",
+            std::format("{}?category=wildfires&status=all&bbox={},{},{},{}&start={}&end={}",
                 kURL,
                 minLatLong.y, maxLatLong.x, maxLatLong.y, minLatLong.x,
                 startDate.ToString(), endDate.ToString())

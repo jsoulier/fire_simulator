@@ -31,17 +31,17 @@ public:
         return "NASA FIRMS";
     }
 
-    std::vector<std::string> GetURLs(
-        const glm::dvec2& minLatLong,
-        const glm::dvec2& maxLatLong,
-        const Date& startDate,
-        const Date& endDate) const override
+    std::vector<std::string> GetURLs(const ReferenceDatabase& database) const override
     {
         std::string key = AuthGetKey("firms_map_key.txt");
         if (key.empty())
         {
             return {};
         }
+        const glm::dvec2 minLatLong = database.GetMinLatLong();
+        const glm::dvec2 maxLatLong = database.GetMaxLatLong();
+        const Date startDate = database.GetStartDate();
+        const Date endDate = database.GetEndDate();
         int maxDays = endDate - startDate + 1;
         std::vector<std::string> urls;
         for (int i = 0; i < maxDays; i += kMaxDaysPerURL)
@@ -63,7 +63,7 @@ public:
         std::vector<ReferencePoint> points;
         std::istringstream stream(data);
         std::string line;
-        std::getline(stream, line); // header
+        std::getline(stream, line); 
         while (std::getline(stream, line))
         {
             double lat;

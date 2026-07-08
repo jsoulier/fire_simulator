@@ -15,18 +15,14 @@
 #include "reference.hpp"
 #include "timer.hpp"
 
-Future<FireResults> Reference::Fetch(
-    Worker& worker,
-    const glm::dvec2& minLatLong,
-    const glm::dvec2& maxLatLong,
-    double resolution,
-    const Date& startDate,
-    const Date& endDate)
+Future<FireResults> Reference::Fetch(Worker& worker, const ReferenceDatabase& database, double resolution)
 {
-    return worker.Submit([this, minLatLong, maxLatLong, resolution, startDate, endDate]()
+    return worker.Submit([this, database, resolution]()
     {
         TimerBlock(std::format("{} fetch", GetName()));
         FireResults results;
+        glm::dvec2 minLatLong = database.GetMinLatLong();
+        glm::dvec2 maxLatLong = database.GetMaxLatLong();
         double latRange = maxLatLong.x - minLatLong.x;
         double longRange = maxLatLong.y - minLatLong.y;
         if (latRange <= 0.0 || longRange <= 0.0)
@@ -43,20 +39,24 @@ Future<FireResults> Reference::Fetch(
             maxLatLong.x,
             maxLatLong.y,
             resolution,
-            startDate.ToString(),
-            endDate.ToString());
+            database.GetStartDate().ToString(),
+            database.GetEndDate().ToString());
         if (!std::filesystem::exists(path))
         {
             std::vector<ReferencePoint> points;
-            for (const std::string& url : GetURLs(minLatLong, maxLatLong, startDate, endDate))
+            for (const std::string& url : GetURLs(database))
             {
                 std::optional<std::string> data = HttpGet(url);
                 if (!data)
                 {
                     continue;
                 }
-                std::vector<ReferencePoint> parsed = GetPoints(*data);
-                points.insert(points.end(), parsed.begin(), parsed.end());
+                std::vector<ReferencePoint> newPoints = GetPoints(*data);
+                if (newPoints.empty())
+                {
+                    spdlog::warn("No points parsed from {}: {}", url, data->substr(0, 256));
+                }
+                points.insert(points.end(), newPoints.begin(), newPoints.end());
             }
             if (points.empty())
             {
@@ -74,11 +74,12 @@ Future<FireResults> Reference::Fetch(
                 {
                     continue;
                 }
-                file << std::format("{},{},{},{},{},0,0,{}\n",
+                std::string row = std::format("{},{},{},{},{},0,0,",
                     (point.Time - t1) / 3600.0,
                     x, y,
-                    point.LatLong.y, point.LatLong.x,
-                    int(FireCellStatus::Igniting));
+                    point.LatLong.y, point.LatLong.x);
+                file << row << int(FireCellStatus::Igniting) << '\n';
+                file << row << int(FireCellStatus::Burnt) << '\n';
             }
         }
         results.Load(path, {width, height});

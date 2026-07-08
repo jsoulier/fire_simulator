@@ -3,7 +3,6 @@
 #include <ankerl/unordered_dense.h>
 #include <glm/glm.hpp>
 
-#include <ctime>
 #include <vector>
 #include <memory>
 
@@ -11,6 +10,7 @@
 #include "fire_simulator.hpp"
 #include "future.hpp"
 #include "reference.hpp"
+#include "reference_database.hpp"
 #include "service.hpp"
 #include "worker.hpp"
 
@@ -33,9 +33,6 @@ private:
     ankerl::unordered_dense::map<int, ServiceSampleType> ServiceIndicesToTypes;
     std::vector<std::unique_ptr<Reference>> References;
     int ReferenceIndex = 0;
-    std::tm StartDate;
-    std::tm EndDate;
-    glm::dvec2 MinLatLong;
-    glm::dvec2 MaxLatLong;
+    ReferenceDatabase Database;
     double Resolution;
 };

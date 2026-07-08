@@ -1,13 +1,10 @@
 #include <SDL3/SDL.h>
-#include <geo_names_imgui.hpp>
 #include <glm/glm.hpp>
 #include <imgui.h>
-#include <ImGuiDatePicker.hpp>
 
 #include <filesystem>
 #include <memory>
 
-#include "date.hpp"
 #include "service_manager.hpp"
 
 static const std::filesystem::path kBasePath = SDL_GetBasePath();
@@ -15,9 +12,7 @@ static const std::filesystem::path kFireSimulatorPath = kBasePath / "fire_simula
 static constexpr double kMetresPerDegree = 111320.0;
 
 ServiceManager::ServiceManager()
-    : MinLatLong{45.30, -75.85}
-    , MaxLatLong{45.50, -75.55}
-    , Resolution{0.001f}
+    : Resolution{0.001f}
 {
     Services.emplace_back(ServiceCreateNRCan());
     Services.emplace_back(ServiceCreateESAWorldCover());
@@ -43,8 +38,6 @@ ServiceManager::ServiceManager()
     ServiceIndices[ServiceSampleType::Aspect] = 2;
     References.emplace_back(ReferenceCreateFIRMS());
     References.emplace_back(ReferenceCreateEONET());
-    StartDate = Date(2021, 7, 13).ToTm();
-    EndDate = Date(2021, 7, 23).ToTm();
 }
 
 std::unique_ptr<Service>& ServiceManager::GetService(ServiceSampleType type)
@@ -60,17 +53,7 @@ std::unique_ptr<Reference>& ServiceManager::GetReference()
 void ServiceManager::RenderImGui()
 {
     // TODO: ImGui::BeginDisabled
-    if (std::optional<GeoNames> location = GetImGuiGeoNames())
-    {
-        const glm::dvec2 extent = (MaxLatLong - MinLatLong) * 0.5;
-        const glm::dvec2 center{location->Latitude, location->Longitude};
-        MinLatLong = center - extent;
-        MaxLatLong = center + extent;
-    }
-    ImGui::InputDouble("Min Latitude", &MinLatLong.x);
-    ImGui::InputDouble("Min Longitude", &MinLatLong.y);
-    ImGui::InputDouble("Max Latitude", &MaxLatLong.x);
-    ImGui::InputDouble("Max Longitude", &MaxLatLong.y);
+    Database.RenderImGui();
     ImGui::InputDouble("Resolution (Degrees)", &Resolution);
     if (ImGui::BeginCombo("Reference", References[ReferenceIndex]->GetDisplayName()))
     {
@@ -83,8 +66,6 @@ void ServiceManager::RenderImGui()
         }
         ImGui::EndCombo();
     }
-    ImGui::DatePicker("Start Date", StartDate);
-    ImGui::DatePicker("End Date", EndDate);
     for (auto& [type, index] : ServiceIndices)
     {
         if (ImGui::BeginCombo(ServiceSampleTypeToString(type), Services[index]->GetDisplayName()))
@@ -128,8 +109,8 @@ void ServiceManager::SetParams(FireSimulatorParams& params) const
     };
     const std::unique_ptr<Service>& fuelService = Services[ServiceIndices.at(ServiceSampleType::FuelModel)];
     glm::ivec2 size = fuelService->GetSize(ServiceSampleType::FuelModel);
-    glm::dvec2 min = MinLatLong;
-    glm::dvec2 max = MaxLatLong;
+    glm::dvec2 min = Database.GetMinLatLong();
+    glm::dvec2 max = Database.GetMaxLatLong();
     SDL_assert(size.x > 0 && size.y > 0);
     params.Width = size.x;
     params.Height = size.y;
@@ -173,7 +154,7 @@ void ServiceManager::Download(Worker& worker)
     {
         worker.Submit([&]()
         {
-            Services[index]->Download(types, MinLatLong, MaxLatLong, Resolution);
+            Services[index]->Download(types, Database.GetMinLatLong(), Database.GetMaxLatLong(), Resolution);
         });
     }
 }
@@ -196,5 +177,5 @@ Future<FireResults> ServiceManager::Simulate(Worker& worker, FireSimulatorParams
 
 Future<FireResults> ServiceManager::Fetch(Worker& worker)
 {
-    return GetReference()->Fetch(worker, MinLatLong, MaxLatLong, Resolution, Date(StartDate), Date(EndDate));
+    return GetReference()->Fetch(worker, Database, Resolution);
 }

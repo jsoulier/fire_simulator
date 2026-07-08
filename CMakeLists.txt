@@ -40,6 +40,7 @@ add_executable(fire_simulator
     src/image_viewer.cpp
     src/main.cpp
     src/reference.cpp
+    src/reference_database.cpp
     src/reference_eonet.cpp
     src/reference_firms.cpp
     src/service.cpp

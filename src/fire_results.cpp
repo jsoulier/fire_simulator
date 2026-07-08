@@ -74,7 +74,10 @@ void FireResults::Load(const std::filesystem::path& path, glm::ivec2 size)
 
 void FireResults::Update(float time)
 {
-    SDL_assert(Texture);
+    if (!Texture)
+    {
+        return;
+    }
     uint32_t* texels = static_cast<uint32_t*>(Texture->GetPixels());
     for (int i = 0; i < Width * Height; i++)
     {
@@ -95,7 +98,7 @@ void FireResults::Update(float time)
             }
             else
             {
-                color = IM_COL32(40, 40, 40, 160);
+                color = IM_COL32(120, 55, 25, 200);
             }
         }
         texels[i] = color;
