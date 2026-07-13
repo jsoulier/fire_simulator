@@ -100,8 +100,8 @@ void ImageViewer::Draw(ServiceManager& serviceManager, std::optional<FireResults
             {
                 Selected = {x, y};
             }
-            ServicePixel pixel = service->GetPixel(type, x, y);
-            if (ServiceSampleTypeToPixelType(type) == ServicePixelType::U32)
+            ServiceSampleTypeValue pixel = service->GetValue(type, x, y, Time);
+            if (ServiceSampleTypeToFormat(type) == ServiceSampleTypeFormat::U32)
             {
                 ImGui::SetTooltip("%u", pixel.U32);
             }

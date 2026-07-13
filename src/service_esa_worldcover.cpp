@@ -29,7 +29,7 @@ public:
         return ServiceSampleType::FuelModel;
     }
 
-    std::vector<std::string> GetURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const override
+    std::vector<std::string> GetURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong, const Date& startDate, const Date& endDate) const override
     {
         // ESA WorldCover is distributed as 3x3 degree GeoTIFFs
         glm::dvec2 cornerMinLatLong;
@@ -56,9 +56,9 @@ public:
         return 1;
     }
 
-    void PostProcess(ServiceSampleType type, std::vector<ServicePixel>& pixels) override
+    void PostProcess(ServiceSampleType type, std::vector<ServiceSampleTypeValue>& pixels) override
     {
-        for (ServicePixel& pixel : pixels)
+        for (ServiceSampleTypeValue& pixel : pixels)
         {
             switch (pixel.U32)
             {

@@ -12,7 +12,8 @@ static const std::filesystem::path kFireSimulatorPath = kBasePath / "fire_simula
 static constexpr double kMetresPerDegree = 111320.0;
 
 ServiceManager::ServiceManager()
-    : Resolution{0.001f}
+    : TileResolution{0.001f}
+    , TimeResolution{1.0f}
 {
     Services.emplace_back(ServiceCreateNRCan());
     Services.emplace_back(ServiceCreateESAWorldCover());
@@ -24,6 +25,7 @@ ServiceManager::ServiceManager()
     Services.emplace_back(ServiceCreateLandfireAspect());
     Services.emplace_back(ServiceCreateLandfireCanopyCover());
     Services.emplace_back(ServiceCreateLandfireCanopyHeight());
+    Services.emplace_back(ServiceCreateOpenMeteo());
     for (int i = 0; i < 32; i++)
     {
         const ServiceSampleType type = ServiceSampleType(1 << i);
@@ -50,11 +52,12 @@ std::unique_ptr<Reference>& ServiceManager::GetReference()
     return References[ReferenceIndex];
 }
 
-void ServiceManager::RenderImGui()
+void ServiceManager::RenderImGui(Worker& worker)
 {
-    // TODO: ImGui::BeginDisabled
+    ImGui::BeginDisabled(worker.IsRunning());
     Database.RenderImGui();
-    ImGui::InputDouble("Resolution (Degrees)", &Resolution);
+    ImGui::InputFloat("Tile Resolution (Degrees)", &TileResolution);
+    ImGui::InputFloat("Time Resolution (Hours)", &TimeResolution);
     if (ImGui::BeginCombo("Reference", References[ReferenceIndex]->GetDisplayName()))
     {
         for (int i = 0; i < References.size(); i++)
@@ -95,52 +98,7 @@ void ServiceManager::RenderImGui()
             ImGui::TreePop();
         }
     }
-}
-
-void ServiceManager::SetParams(FireSimulatorParams& params) const
-{
-    auto getPixel = [this](ServiceSampleType type) -> std::function<float(int, int)>
-    {
-        const std::unique_ptr<Service>& service = Services[ServiceIndices.at(type)];
-        return [&service, type](int x, int y)
-        {
-            return service->GetPixel(type, x, y).F32;
-        };
-    };
-    const std::unique_ptr<Service>& fuelService = Services[ServiceIndices.at(ServiceSampleType::FuelModel)];
-    glm::ivec2 size = fuelService->GetSize(ServiceSampleType::FuelModel);
-    glm::dvec2 min = Database.GetMinLatLong();
-    glm::dvec2 max = Database.GetMaxLatLong();
-    SDL_assert(size.x > 0 && size.y > 0);
-    params.Width = size.x;
-    params.Height = size.y;
-    params.Resolution = Resolution * kMetresPerDegree;
-    params.FuelModel = [&fuelService](int x, int y)
-    {
-        return FireFuelModelType(fuelService->GetPixel(ServiceSampleType::FuelModel, x, y).U32);
-    };
-    params.Longitude = [min, max, size](int x, int)
-    {
-        return min.y + (x + 0.5) / size.x * (max.y - min.y);
-    };
-    params.Latitude = [min, max, size](int, int y)
-    {
-        return max.x - (y + 0.5) / size.y * (max.x - min.x);
-    };
-    params.Elevation = getPixel(ServiceSampleType::Elevation);
-    params.Slope = getPixel(ServiceSampleType::Slope);
-    params.Aspect = getPixel(ServiceSampleType::Aspect);
-    params.CanopyCover = getPixel(ServiceSampleType::CanopyCover);
-    params.CanopyHeight = getPixel(ServiceSampleType::CanopyHeight);
-    params.CrownRatio = getPixel(ServiceSampleType::CrownRatio);
-    params.WindSpeed = getPixel(ServiceSampleType::WindSpeed);
-    params.WindDirection = getPixel(ServiceSampleType::WindDirection);
-    params.MoistureOneHour = getPixel(ServiceSampleType::MoistureOneHour);
-    params.MoistureTenHour = getPixel(ServiceSampleType::MoistureTenHour);
-    params.MoistureHundredHour = getPixel(ServiceSampleType::MoistureHundredHour);
-    params.MoistureLiveHerbaceous = getPixel(ServiceSampleType::MoistureLiveHerbaceous);
-    params.MoistureLiveWoody = getPixel(ServiceSampleType::MoistureLiveWoody);
-    params.OutPath = kFireSimulatorPath.string();
+    ImGui::EndDisabled();
 }
 
 void ServiceManager::Download(Worker& worker)
@@ -154,7 +112,14 @@ void ServiceManager::Download(Worker& worker)
     {
         worker.Submit([&]()
         {
-            Services[index]->Download(types, Database.GetMinLatLong(), Database.GetMaxLatLong(), Resolution);
+            Services[index]->Download(
+                types,
+                Database.GetMinLatLong(),
+                Database.GetMaxLatLong(),
+                TileResolution,
+                TimeResolution,
+                Database.GetStartDate(),
+                Database.GetEndDate());
         });
     }
 }
@@ -165,7 +130,56 @@ Future<FireResults> ServiceManager::Simulate(Worker& worker, FireSimulatorParams
     {
         FireResults results;
         FireSimulatorParams params = inParams;
-        SetParams(params);
+        const auto getStaticPixel = [this](ServiceSampleType type) -> std::function<float(int, int)>
+        {
+            const Service* service = Services[ServiceIndices.at(type)].get();
+            return [service, type](int x, int y)
+            {
+                return service->GetValue(type, x, y, 0.0f).F32;
+            };
+        };
+        const auto getDynamicPixel = [this](ServiceSampleType type) -> std::function<float(int, int, float)>
+        {
+            const Service* service = Services[ServiceIndices.at(type)].get();
+            return [service, type](int x, int y, float time)
+            {
+                return service->GetValue(type, x, y, time).F32;
+            };
+        };
+        const Service* fuelService = Services[ServiceIndices.at(ServiceSampleType::FuelModel)].get();
+        glm::ivec2 size = fuelService->GetSize(ServiceSampleType::FuelModel);
+        glm::dvec2 min = Database.GetMinLatLong();
+        glm::dvec2 max = Database.GetMaxLatLong();
+        SDL_assert(size.x > 0 && size.y > 0);
+        params.Width = size.x;
+        params.Height = size.y;
+        params.Resolution = TileResolution * kMetresPerDegree;
+        params.FuelModel = [fuelService](int x, int y)
+        {
+            return FireFuelModelType(fuelService->GetValue(ServiceSampleType::FuelModel, x, y, 0.0f).U32);
+        };
+        params.Longitude = [min, max, size](int x, int)
+        {
+            return min.y + (x + 0.5) / size.x * (max.y - min.y);
+        };
+        params.Latitude = [min, max, size](int, int y)
+        {
+            return max.x - (y + 0.5) / size.y * (max.x - min.x);
+        };
+        params.Elevation = getStaticPixel(ServiceSampleType::Elevation);
+        params.Slope = getStaticPixel(ServiceSampleType::Slope);
+        params.Aspect = getStaticPixel(ServiceSampleType::Aspect);
+        params.CanopyCover = getStaticPixel(ServiceSampleType::CanopyCover);
+        params.CanopyHeight = getStaticPixel(ServiceSampleType::CanopyHeight);
+        params.CrownRatio = getStaticPixel(ServiceSampleType::CrownRatio);
+        params.WindSpeed = getDynamicPixel(ServiceSampleType::WindSpeed);
+        params.WindDirection = getDynamicPixel(ServiceSampleType::WindDirection);
+        params.MoistureOneHour = getDynamicPixel(ServiceSampleType::MoistureOneHour);
+        params.MoistureTenHour = getDynamicPixel(ServiceSampleType::MoistureTenHour);
+        params.MoistureHundredHour = getDynamicPixel(ServiceSampleType::MoistureHundredHour);
+        params.MoistureLiveHerbaceous = getDynamicPixel(ServiceSampleType::MoistureLiveHerbaceous);
+        params.MoistureLiveWoody = getDynamicPixel(ServiceSampleType::MoistureLiveWoody);
+        params.OutPath = kFireSimulatorPath.string();
         if (!FireSimulatorRun(params))
         {
             return results;
@@ -177,5 +191,5 @@ Future<FireResults> ServiceManager::Simulate(Worker& worker, FireSimulatorParams
 
 Future<FireResults> ServiceManager::Fetch(Worker& worker)
 {
-    return GetReference()->Fetch(worker, Database, Resolution);
+    return GetReference()->Fetch(worker, Database, TileResolution);
 }

@@ -9,6 +9,7 @@
 #include <ankerl/unordered_dense.h>
 
 #include <format>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <ostream>
@@ -47,7 +48,17 @@ std::ostream& operator<<(std::ostream& stream, const FireState& state);
 class FireModel : public cadmium::celldevs::GridCell<FireState, double>
 {
 public:
-    FireModel(const cadmium::celldevs::coordinates& id, const std::shared_ptr<const cadmium::celldevs::GridCellConfig<FireState, double>>& config, float resolution);
+    FireModel(
+        const cadmium::celldevs::coordinates& id,
+        const std::shared_ptr<const cadmium::celldevs::GridCellConfig<FireState, double>>& config,
+        float resolution,
+        std::function<float(int, int, float)> windSpeed,
+        std::function<float(int, int, float)> windDirection,
+        std::function<float(int, int, float)> moistureOneHour,
+        std::function<float(int, int, float)> moistureTenHour,
+        std::function<float(int, int, float)> moistureHundredHour,
+        std::function<float(int, int, float)> moistureLiveHerbaceous,
+        std::function<float(int, int, float)> moistureLiveWoody);
     [[nodiscard]] bool isComplete() const override;
     [[nodiscard]] FireState localComputation(FireState state, const cadmium::celldevs::Neighborhood<cadmium::celldevs::coordinates, FireState, double>& neighborhood) const override;
     [[nodiscard]] double outputDelay(const FireState& state) const override;
@@ -55,7 +66,9 @@ public:
 
 private:
     friend std::ostream& operator<<(std::ostream& stream, const FireModel& model);
-    float GetDirectionSpreadRate(float bearing) const;
+    float GetTime() const;
+    BehaveRun& GetBehaveRun() const;
+    float GetDirectionalSpreadRate(float bearing) const;
     float GetMaxSpreadRate() const;
 
     float Resolution;
@@ -65,14 +78,15 @@ private:
     double Longitude;
     double Latitude;
     float Height;
-    float WindSpeed;
-    float WindDirection;
+    // TODO: create a FireSimulator class and store these functions on it. they're all duplicates
+    std::function<float(int, int, float)> WindSpeed;
+    std::function<float(int, int, float)> WindDirection;
+    std::function<float(int, int, float)> MoistureOneHour;
+    std::function<float(int, int, float)> MoistureTenHour;
+    std::function<float(int, int, float)> MoistureHundredHour;
+    std::function<float(int, int, float)> MoistureLiveHerbaceous;
+    std::function<float(int, int, float)> MoistureLiveWoody;
     float CanopyCover;
     float CanopyHeight;
     float CrownRatio;
-    float Moisture1Hour;
-    float Moisture10Hour;
-    float Moisture100Hour;
-    float MoistureLiveHerbaceous;
-    float MoistureLiveWoody;
 };

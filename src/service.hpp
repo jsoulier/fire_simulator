@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "fire_fuel_model.hpp"
+#include "date.hpp"
 
 enum class ServiceSampleType
 {
@@ -46,24 +47,6 @@ enum class ServiceSampleType
         MoistureLiveWoody,
 };
 
-static constexpr const char* kServiceSampleTypeStrings[] =
-{
-    "Fuel Model",
-    "Elevation",
-    "Slope",
-    "Aspect",
-    "Canopy Cover",
-    "Canopy Height",
-    "Crown Ratio",
-    "Wind Speed",
-    "Wind Direction",
-    "Moisture 1 Hour",
-    "Moisture 10 Hour",
-    "Moisture 100 Hour",
-    "Moisture Live Herbaceous",
-    "Moisture Live Woody",
-};
-
 constexpr ServiceSampleType operator|(ServiceSampleType a, ServiceSampleType b)
 {
     return ServiceSampleType(int(a) | int(b));
@@ -84,43 +67,96 @@ constexpr ServiceSampleType& operator|=(ServiceSampleType& a, ServiceSampleType 
     return a = a | b;
 }
 
-struct ServiceSample
-{
-    FireFuelModelType FuelModel;
-    float Elevation;
-    float Slope;
-    float Aspect;
-    float CanopyCover;
-    float CanopyHeight;
-    float CrownRatio;
-    float WindSpeed;
-    float WindDirection;
-    float MoistureOneHour;
-    float MoistureTenHour;
-    float MoistureHundredHour;
-    float MoistureLiveHerbaceous;
-    float MoistureLiveWoody;
-};
-
-union ServicePixel
-{
-    float F32;
-    uint32_t U32;
-};
-
-enum class ServicePixelType
+enum class ServiceSampleTypeFormat
 {
     F32,
     U32,
 };
 
+union ServiceSampleTypeValue
+{
+    float F32;
+    uint32_t U32;
+};
+
+struct ServiceSampleTypeDynamicValue
+{
+    ServiceSampleTypeValue Value;
+    float Time; // epoch hours
+};
+
+enum class ServiceSampleTypeTime
+{
+    Static,
+    Dynamic,
+};
+
+static constexpr const char* kServiceSampleTypeStrings[] =
+{
+    "Fuel Model",
+    "Elevation",
+    "Slope",
+    "Aspect",
+    "Canopy Cover",
+    "Canopy Height",
+    "Crown Ratio",
+    "Wind Speed",
+    "Wind Direction",
+    "Moisture 1 Hour",
+    "Moisture 10 Hour",
+    "Moisture 100 Hour",
+    "Moisture Live Herbaceous",
+    "Moisture Live Woody",
+};
+
+static constexpr ServiceSampleTypeFormat kServiceSampleTypeFormats[] =
+{
+    ServiceSampleTypeFormat::U32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
+};
+
+static constexpr ServiceSampleTypeTime kServiceSampleTypeTimes[] =
+{
+    ServiceSampleTypeTime::Static,
+    ServiceSampleTypeTime::Static,
+    ServiceSampleTypeTime::Static,
+    ServiceSampleTypeTime::Static,
+    ServiceSampleTypeTime::Static,
+    ServiceSampleTypeTime::Static,
+    ServiceSampleTypeTime::Static,
+    ServiceSampleTypeTime::Dynamic,
+    ServiceSampleTypeTime::Dynamic,
+    ServiceSampleTypeTime::Dynamic,
+    ServiceSampleTypeTime::Dynamic,
+    ServiceSampleTypeTime::Dynamic,
+    ServiceSampleTypeTime::Dynamic,
+    ServiceSampleTypeTime::Dynamic,
+};
+
 uint32_t ServiceSampleTypeToIndex(ServiceSampleType type);
 ServiceSampleType ServiceSampleTypeFromIndex(uint32_t index);
 const char* ServiceSampleTypeToString(ServiceSampleType type);
-ServicePixelType ServiceSampleTypeToPixelType(ServiceSampleType type);
+ServiceSampleTypeTime ServiceSampleTypeToTime(ServiceSampleType type);
+ServiceSampleTypeFormat ServiceSampleTypeToFormat(ServiceSampleType type);
 
 class Service
 {
+protected:
+    struct StaticSampleData;
+    struct DynamicSampleData;
+
 public:
     virtual ~Service() = default;
     virtual const char* GetName() const = 0;
@@ -128,22 +164,32 @@ public:
     virtual ServiceSampleType GetSupportedTypes() const = 0;
     virtual ServiceSampleType GetRequiredSampleTypes(ServiceSampleType types) const { return {}; }
     virtual void RenderImGui() {}
-    void Download(ServiceSampleType types, const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong, double resolution);
-    virtual ServicePixel GetPixel(ServiceSampleType type, const glm::dvec2& latLong) const;
-    virtual ServicePixel GetPixel(ServiceSampleType type, int x, int y) const;
+    void Download(
+        ServiceSampleType types,
+        const glm::dvec2& minLatLong,
+        const glm::dvec2& maxLatLong,
+        float tileResolution,
+        float timeResolution,
+        const Date& startDate,
+        const Date& endDate);
+    // TODO: make non-virtual. make ServiceCustom populate Static/DynamicData instead
+    virtual ServiceSampleTypeValue GetValue(ServiceSampleType type, const glm::dvec2& latLong, float time) const;
+    virtual ServiceSampleTypeValue GetValue(ServiceSampleType type, int x, int y, float time) const;
     glm::ivec2 GetSize(ServiceSampleType type) const;
     ImTextureRef GetTextureRef(ServiceSampleType type);
 
 protected:
-    virtual std::vector<std::string> GetURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const { return {}; }
+    virtual std::vector<std::string> GetURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong, const Date& startDate, const Date& endDate) const { return {}; }
+    virtual std::vector<ServiceSampleTypeDynamicValue> GetDynamicValues(const std::string& response, ServiceSampleType type) const { return {}; }
     virtual int GetBand(ServiceSampleType type) const { return 0; }
     virtual void Derive(ServiceSampleType type, GDALDatasetH lowResolution, const std::string& basePath) {}
-    virtual void PostProcess(ServiceSampleType type, std::vector<ServicePixel>& pixels) {}
+    virtual void PostProcess(ServiceSampleType type, std::vector<ServiceSampleTypeValue>& pixels) {}
+    ServiceSampleTypeValue GetDynamicValue(ServiceSampleType type, float time) const;
     void DEMProcessing(GDALDatasetH elevation, const std::string& basePath, ServiceSampleType type);
 
-    struct Raster
+    struct StaticSampleData
     {
-        Raster();
+        StaticSampleData();
 
         int Width;
         int Height;
@@ -156,11 +202,21 @@ protected:
         double GeoTransform[6];
         double InverseGeoTransform[6];
         std::string Wkt;
-        std::vector<ServicePixel> Pixels;
+        std::vector<ServiceSampleTypeValue> Pixels;
         ImTextureRef Texture;
     };
 
-    ankerl::unordered_dense::map<ServiceSampleType, Raster> Rasters;
+    struct DynamicSampleData
+    {
+        DynamicSampleData();
+
+        float Start;      // hours
+        float Resolution; // hours per sample
+        std::vector<ServiceSampleTypeValue> Samples;
+    };
+
+    ankerl::unordered_dense::map<ServiceSampleType, StaticSampleData> StaticData;
+    ankerl::unordered_dense::map<ServiceSampleType, DynamicSampleData> DynamicData;
 };
 
 std::unique_ptr<Service> ServiceCreateESAWorldCover();
@@ -173,3 +229,4 @@ std::unique_ptr<Service> ServiceCreateLandfireSlope();
 std::unique_ptr<Service> ServiceCreateLandfireAspect();
 std::unique_ptr<Service> ServiceCreateLandfireCanopyCover();
 std::unique_ptr<Service> ServiceCreateLandfireCanopyHeight();
+std::unique_ptr<Service> ServiceCreateOpenMeteo();

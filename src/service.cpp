@@ -10,17 +10,17 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cctype>
+#include <cmath>
 #include <filesystem>
 #include <format>
-#include <fstream>
-#include <iterator>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "service.hpp"
+#include "http.hpp"
 #include "timer.hpp"
 
 uint32_t ServiceSampleTypeToIndex(ServiceSampleType type)
@@ -38,12 +38,17 @@ const char* ServiceSampleTypeToString(ServiceSampleType type)
     return kServiceSampleTypeStrings[ServiceSampleTypeToIndex(type)];
 }
 
-ServicePixelType ServiceSampleTypeToPixelType(ServiceSampleType type)
+ServiceSampleTypeTime ServiceSampleTypeToTime(ServiceSampleType type)
 {
-    return type == ServiceSampleType::FuelModel ? ServicePixelType::U32 : ServicePixelType::F32;
+    return kServiceSampleTypeTimes[ServiceSampleTypeToIndex(type)];
 }
 
-Service::Raster::Raster()
+ServiceSampleTypeFormat ServiceSampleTypeToFormat(ServiceSampleType type)
+{
+    return kServiceSampleTypeFormats[ServiceSampleTypeToIndex(type)];
+}
+
+Service::StaticSampleData::StaticSampleData()
     : Width(0)
     , Height(0)
     , GeoTransform{}
@@ -52,11 +57,110 @@ Service::Raster::Raster()
 {
 }
 
-void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong, double resolution)
+Service::DynamicSampleData::DynamicSampleData()
+    : Start(0.0f)
+    , Resolution(0.0f)
 {
+}
+
+void Service::Download(
+    ServiceSampleType types,
+    const glm::dvec2& minLatLong,
+    const glm::dvec2& maxLatLong,
+    float tileResolution,
+    float timeResolution,
+    const Date& startDate,
+    const Date& endDate)
+{
+    SDL_assert(tileResolution > 0.0f);
+    SDL_assert(timeResolution > 0.0f);
     TimerBlock(std::format("{} download", GetName()));
     types |= GetRequiredSampleTypes(types);
     SDL_assert((types & ~GetSupportedTypes()) == ServiceSampleType{});
+    StaticData.clear();
+    DynamicData.clear();
+    ////////////////////////////////////////////////////////////////////////////
+    // Handle dynamic types
+    ServiceSampleType dynamicTypes{};
+    for (uint32_t i = 0; i < 32; ++i)
+    {
+        const ServiceSampleType type = ServiceSampleType(1 << i);
+        if ((types & type) != ServiceSampleType{} && ServiceSampleTypeToTime(type) == ServiceSampleTypeTime::Dynamic)
+        {
+            dynamicTypes |= type;
+        }
+    }
+    if (dynamicTypes != ServiceSampleType{})
+    {
+        TimerBlock(std::format("{} dynamic", GetName()));
+        ankerl::unordered_dense::map<ServiceSampleType, std::vector<ServiceSampleTypeDynamicValue>> dynamicValues;
+        const std::vector<std::string> urls = GetURLs(minLatLong, maxLatLong, startDate, endDate);
+        for (const std::string& url : urls)
+        {
+            const std::optional<std::string> response = HttpGetAndCache(url);
+            if (!response)
+            {
+                return;
+            }
+            for (int i = 0; i < 32; i++)
+            {
+                const ServiceSampleType type = ServiceSampleType(1 << i);
+                if ((dynamicTypes & type) == ServiceSampleType{})
+                {
+                    continue;
+                }
+                std::vector<ServiceSampleTypeDynamicValue> values = GetDynamicValues(*response, type);
+                std::vector<ServiceSampleTypeDynamicValue>& allValues = dynamicValues[type];
+                if (allValues.empty())
+                {
+                    allValues = std::move(values);
+                }
+                else
+                {
+                    allValues.insert(allValues.end(), values.begin(), values.end());
+                }
+            }
+        }
+        ////////////////////////////////////////////////////////////////////////////
+        // Convert to desired resolution (skip high frequency samples or duplicate low frequency ones)
+        float start = startDate.ToEpoch() / 60.0f;
+        for (auto& [type, values] : dynamicValues)
+        {
+            if (values.empty())
+            {
+                spdlog::error("Failed to get dynamic values for {}: {}", ServiceSampleTypeToString(type), GetName());
+                continue;
+            }
+            std::stable_sort(values.begin(), values.end(), [](const ServiceSampleTypeDynamicValue& a, const ServiceSampleTypeDynamicValue& b)
+            {
+                return a.Time < b.Time;
+            });
+            DynamicSampleData data;
+            data.Start = 0.0f;
+            data.Resolution = timeResolution;
+            int index = 0;
+            float end = endDate.ToEpoch() / 60.0f;
+            for (float time = start; time <= end; time += timeResolution)
+            {
+                while (index + 1 < values.size() && values[index + 1].Time <= time)
+                {
+                    index++;
+                }
+                data.Samples.push_back(values[index].Value);
+            }
+            if (data.Samples.empty())
+            {
+                spdlog::error("Failed to sample dynamic values for {}: {}", ServiceSampleTypeToString(type), GetName());
+                continue;
+            }
+            DynamicData[type] = std::move(data);
+        }
+        types = types & ~dynamicTypes;
+    }
+    if (types == ServiceSampleType{})
+    {
+        return;
+    }
     GDALAllRegister();
     const char* projPath[] = { SDL_GetBasePath(), nullptr };
     OSRSetPROJSearchPaths(projPath);
@@ -72,7 +176,7 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
     if (!std::filesystem::exists(filePath))
     {
         TimerBlock(std::format("{} vrt", GetName()));
-        std::vector<std::string> sources = GetURLs(minLatLong, maxLatLong);
+        std::vector<std::string> sources = GetURLs(minLatLong, maxLatLong, startDate, endDate);
         if (sources.empty())
         {
             return;
@@ -168,14 +272,14 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
         spdlog::error("Failed to open {}: {}", filePath.string(), CPLGetLastErrorMsg());
         return;
     }
-    const std::string resolutionString = std::format("{}", resolution);
+    const std::string tileResolutionString = std::format("{}", tileResolution);
     const std::string lowResolutionBasePath = (basePath / std::format("{}_{}.{}_{}.{}_{}",
         GetName(),
         minLatLong.x,
         minLatLong.y,
         maxLatLong.x,
         maxLatLong.y,
-        resolution)).string();
+        tileResolution)).string();
     for (int i = 0; i < 32; i++)
     {
         const ServiceSampleType type = ServiceSampleType(1 << i);
@@ -188,11 +292,11 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
         {
             TimerBlock(std::format("{} {} downsample", GetName(), ServiceSampleTypeToString(type)));
             const std::string bandString = std::format("{}", GetBand(type));
-            const std::string algorithmString = ServiceSampleTypeToPixelType(type) == ServicePixelType::U32 ? "mode" : "average";
+            const std::string algorithmString = ServiceSampleTypeToFormat(type) == ServiceSampleTypeFormat::U32 ? "mode" : "average";
             const char* args[] =
             {
                 "-b", bandString.c_str(),
-                "-tr", resolutionString.c_str(), resolutionString.c_str(),
+                "-tr", tileResolutionString.c_str(), tileResolutionString.c_str(),
                 "-r", algorithmString.c_str(),
                 nullptr
             };
@@ -218,25 +322,25 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
             TimerBlock(std::format("{} {} derive", GetName(), ServiceSampleTypeToString(type)));
             Derive(type, lowResolution, lowResolutionBasePath);
         }
-        Raster raster;
+        StaticSampleData staticData;
         {
-            TimerBlock(std::format("{} {} raster", GetName(), ServiceSampleTypeToString(type)));
-            raster.Width = GDALGetRasterXSize(lowResolution);
-            raster.Height = GDALGetRasterYSize(lowResolution);
-            if (GDALGetGeoTransform(lowResolution, raster.GeoTransform) != CE_None ||
-                GDALInvGeoTransform(raster.GeoTransform, raster.InverseGeoTransform) == FALSE)
+            TimerBlock(std::format("{} {} static", GetName(), ServiceSampleTypeToString(type)));
+            staticData.Width = GDALGetRasterXSize(lowResolution);
+            staticData.Height = GDALGetRasterYSize(lowResolution);
+            if (GDALGetGeoTransform(lowResolution, staticData.GeoTransform) != CE_None ||
+                GDALInvGeoTransform(staticData.GeoTransform, staticData.InverseGeoTransform) == FALSE)
             {
                 spdlog::error("Failed to get GeoTransform or InvGeoTransform for {}", lowResolutionFilePath.string());
                 GDALClose(lowResolution);
                 continue;
             }
-            raster.Wkt = GDALGetProjectionRef(lowResolution);
-            raster.Pixels.resize(size_t(raster.Width) * size_t(raster.Height));
+            staticData.Wkt = GDALGetProjectionRef(lowResolution);
+            staticData.Pixels.resize(size_t(staticData.Width) * size_t(staticData.Height));
             CPLErr status = GDALRasterIO(
                 GDALGetRasterBand(lowResolution, 1), GF_Read,
-                0, 0, raster.Width, raster.Height,
-                raster.Pixels.data(), raster.Width, raster.Height,
-                ServiceSampleTypeToPixelType(type) == ServicePixelType::U32 ? GDT_UInt32 : GDT_Float32, 0, 0);
+                0, 0, staticData.Width, staticData.Height,
+                staticData.Pixels.data(), staticData.Width, staticData.Height,
+                ServiceSampleTypeToFormat(type) == ServiceSampleTypeFormat::U32 ? GDT_UInt32 : GDT_Float32, 0, 0);
             GDALClose(lowResolution);
             if (status != CE_None)
             {
@@ -246,35 +350,35 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
         }
         {
             TimerBlock(std::format("{} {} post process", GetName(), ServiceSampleTypeToString(type)));
-            PostProcess(type, raster.Pixels);
+            PostProcess(type, staticData.Pixels);
         }
-        Rasters[type] = std::move(raster);
+        StaticData[type] = std::move(staticData);
     }
     GDALClose(highResolution);
     ////////////////////////////////////////////////////////////////////////////
     // Create ImTextures for each band
     {
-        for (auto& [type, raster] : Rasters)
+        for (auto& [type, staticData] : StaticData)
         {
             TimerBlock(std::format("{} {} texture", GetName(), ServiceSampleTypeToString(type)));
             ImTextureData* texture = IM_NEW(ImTextureData)();
-            texture->Create(ImTextureFormat_RGBA32, raster.Width, raster.Height);
+            texture->Create(ImTextureFormat_RGBA32, staticData.Width, staticData.Height);
             uint32_t* texels = reinterpret_cast<uint32_t*>(texture->GetPixels());
             if (type == ServiceSampleType::FuelModel)
             {
-                SDL_assert(ServiceSampleTypeToPixelType(type) == ServicePixelType::U32);
-                for (size_t i = 0; i < raster.Pixels.size(); i++)
+                SDL_assert(ServiceSampleTypeToFormat(type) == ServiceSampleTypeFormat::U32);
+                for (size_t i = 0; i < staticData.Pixels.size(); i++)
                 {
-                    texels[i] = FireFuelModelTypeGetColor(FireFuelModelType(raster.Pixels[i].U32));
+                    texels[i] = FireFuelModelTypeGetColor(FireFuelModelType(staticData.Pixels[i].U32));
                 }
             }
             else
             {
-                SDL_assert(ServiceSampleTypeToPixelType(type) == ServicePixelType::F32);
+                SDL_assert(ServiceSampleTypeToFormat(type) == ServiceSampleTypeFormat::F32);
                 static constexpr float kNoData = -9999.0f;
                 float minValue = std::numeric_limits<float>::max();
                 float maxValue = std::numeric_limits<float>::lowest();
-                for (const ServicePixel& pixel : raster.Pixels)
+                for (const ServiceSampleTypeValue& pixel : staticData.Pixels)
                 {
                     if (pixel.F32 == kNoData)
                     {
@@ -284,54 +388,79 @@ void Service::Download(ServiceSampleType types, const glm::dvec2& minLatLong, co
                     maxValue = std::max(maxValue, pixel.F32);
                 }
                 const float range = maxValue - minValue;
-                for (size_t i = 0; i < raster.Pixels.size(); i++)
+                for (size_t i = 0; i < staticData.Pixels.size(); i++)
                 {
                     uint8_t gray = 0;
-                    if (raster.Pixels[i].F32 != kNoData && range > 0.0f)
+                    if (staticData.Pixels[i].F32 != kNoData && range > 0.0f)
                     {
-                        gray = (raster.Pixels[i].F32 - minValue) / range * 255.0f;
+                        gray = (staticData.Pixels[i].F32 - minValue) / range * 255.0f;
                     }
                     texels[i] = IM_COL32(gray, gray, gray, 255);
                 }
             }
             ImGui::RegisterUserTexture(texture);
-            raster.Texture = texture->GetTexRef();
+            staticData.Texture = texture->GetTexRef();
         }
     }
 }
 
-ServicePixel Service::GetPixel(ServiceSampleType type, const glm::dvec2& latLong) const
+ServiceSampleTypeValue Service::GetValue(ServiceSampleType type, const glm::dvec2& latLong, float time) const
 {
-    const auto it = Rasters.find(type);
-    if (it == Rasters.end())
+    if (ServiceSampleTypeToTime(type) == ServiceSampleTypeTime::Dynamic)
     {
-        return ServicePixel{};
+        return GetDynamicValue(type, time);
     }
-    const double* transform = it->second.InverseGeoTransform;
-    int x = int(transform[0] + latLong.y * transform[1] + latLong.x * transform[2]);
-    int y = int(transform[3] + latLong.y * transform[4] + latLong.x * transform[5]);
-    return GetPixel(type, x, y);
+    else
+    {
+        const auto it = StaticData.find(type);
+        SDL_assert(it != StaticData.end());
+        const double* transform = it->second.InverseGeoTransform;
+        int x = int(transform[0] + latLong.y * transform[1] + latLong.x * transform[2]);
+        int y = int(transform[3] + latLong.y * transform[4] + latLong.x * transform[5]);
+        return GetValue(type, x, y, time);
+    }
 }
 
-ServicePixel Service::GetPixel(ServiceSampleType type, int x, int y) const
+ServiceSampleTypeValue Service::GetValue(ServiceSampleType type, int x, int y, float time) const
 {
-    const auto it = Rasters.find(type);
-    if (it == Rasters.end())
+    if (ServiceSampleTypeToTime(type) == ServiceSampleTypeTime::Dynamic)
     {
-        return ServicePixel{};
+        return GetDynamicValue(type, time);
     }
-    const Raster& raster = it->second;
-    if (x < 0 || y < 0 || x >= raster.Width || y >= raster.Height)
+    else
     {
-        return ServicePixel{};
+        const auto it = StaticData.find(type);
+        SDL_assert(it != StaticData.end());
+        const StaticSampleData& staticData = it->second;
+        // TODO: should assert?
+        if (x < 0 || y < 0 || x >= staticData.Width || y >= staticData.Height)
+        {
+            return ServiceSampleTypeValue{};
+        }
+        return staticData.Pixels[size_t(y) * staticData.Width + x];
     }
-    return raster.Pixels[size_t(y) * raster.Width + x];
+}
+
+ServiceSampleTypeValue Service::GetDynamicValue(ServiceSampleType type, float time) const
+{
+    SDL_assert(ServiceSampleTypeToTime(type) == ServiceSampleTypeTime::Dynamic);
+    const auto it = DynamicData.find(type);
+    SDL_assert(it != DynamicData.end());
+    const DynamicSampleData& data = it->second;
+    if (data.Samples.empty() || data.Resolution == 0.0f)
+    {
+        return ServiceSampleTypeValue{};
+    }
+    int index = std::round((time - data.Start) / data.Resolution);
+    index = std::clamp(index, 0, int(data.Samples.size() - 1));
+    return data.Samples[index];
 }
 
 glm::ivec2 Service::GetSize(ServiceSampleType type) const
 {
-    const auto it = Rasters.find(type);
-    if (it != Rasters.end())
+    // TODO: should assert?
+    const auto it = StaticData.find(type);
+    if (it != StaticData.end())
     {
         return glm::ivec2(it->second.Width, it->second.Height);
     }
@@ -343,8 +472,9 @@ glm::ivec2 Service::GetSize(ServiceSampleType type) const
 
 ImTextureRef Service::GetTextureRef(ServiceSampleType type)
 {
-    const auto it = Rasters.find(type);
-    if (it != Rasters.end())
+    // TODO: should assert?
+    const auto it = StaticData.find(type);
+    if (it != StaticData.end())
     {
         return it->second.Texture;
     } 

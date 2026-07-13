@@ -62,6 +62,7 @@ add_executable(fire_simulator
     src/service_landfire_slope.cpp
     src/service_manager.cpp
     src/service_nrcan.cpp
+    src/service_open_meteo.cpp
     src/service_open_topography.cpp
     src/timer.cpp
     src/worker.cpp

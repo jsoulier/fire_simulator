@@ -43,13 +43,13 @@ struct FireSimulatorParams
     std::function<float(int x, int y)> CanopyCover;            // 0 to 1 fraction
     std::function<float(int x, int y)> CanopyHeight;           // metres
     std::function<float(int x, int y)> CrownRatio;             // 0 to 1 fraction
-    std::function<float(int x, int y)> WindSpeed;              // mph
-    std::function<float(int x, int y)> WindDirection;          // relative to north degrees
-    std::function<float(int x, int y)> MoistureOneHour;        // percent
-    std::function<float(int x, int y)> MoistureTenHour;        // percent
-    std::function<float(int x, int y)> MoistureHundredHour;    // percent
-    std::function<float(int x, int y)> MoistureLiveHerbaceous; // percent
-    std::function<float(int x, int y)> MoistureLiveWoody;      // percent
+    std::function<float(int x, int y, float time)> WindSpeed;  // mph; time is simulation hours
+    std::function<float(int x, int y, float time)> WindDirection; // relative to north degrees; time is simulation hours
+    std::function<float(int x, int y, float time)> MoistureOneHour;        // percent; time is simulation hours
+    std::function<float(int x, int y, float time)> MoistureTenHour;        // percent; time is simulation hours
+    std::function<float(int x, int y, float time)> MoistureHundredHour;    // percent; time is simulation hours
+    std::function<float(int x, int y, float time)> MoistureLiveHerbaceous; // percent; time is simulation hours
+    std::function<float(int x, int y, float time)> MoistureLiveWoody;      // percent; time is simulation hours
     std::string OutPath;
 };
 

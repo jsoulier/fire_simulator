@@ -31,9 +31,9 @@ public:
         return "RSP_BilinearInterpolation";
     }
 
-    void PostProcess(ServiceSampleType type, std::vector<ServicePixel>& pixels) override
+    void PostProcess(ServiceSampleType type, std::vector<ServiceSampleTypeValue>& pixels) override
     {
-        for (ServicePixel& pixel : pixels)
+        for (ServiceSampleTypeValue& pixel : pixels)
         {
             if (pixel.F32 >= 0.0f)
             {

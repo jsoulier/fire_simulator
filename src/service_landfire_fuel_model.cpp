@@ -31,9 +31,9 @@ public:
         return "RSP_NearestNeighbor";
     }
 
-    void PostProcess(ServiceSampleType type, std::vector<ServicePixel>& pixels) override
+    void PostProcess(ServiceSampleType type, std::vector<ServiceSampleTypeValue>& pixels) override
     {
-        for (ServicePixel& pixel : pixels)
+        for (ServiceSampleTypeValue& pixel : pixels)
         {
             // no data (-9999) gets converted to 0 so we guard against that here
             if (pixel.U32 < kFireFuelModelNB1 || pixel.U32 > kFireFuelModelSB4)

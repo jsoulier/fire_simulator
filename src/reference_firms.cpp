@@ -42,7 +42,7 @@ public:
         const glm::dvec2 maxLatLong = database.GetMaxLatLong();
         const Date startDate = database.GetStartDate();
         const Date endDate = database.GetEndDate();
-        int maxDays = endDate - startDate + 1;
+        int maxDays = startDate.GetDaysBetween(endDate) + 1;
         std::vector<std::string> urls;
         for (int i = 0; i < maxDays; i += kMaxDaysPerURL)
         {
@@ -53,7 +53,7 @@ public:
                 kSource,
                 minLatLong.y, minLatLong.x, maxLatLong.y, maxLatLong.x,
                 dayRange,
-                (startDate + i).ToString()));
+                startDate.AddDays(i).ToString()));
         }
         return urls;
     }
@@ -74,7 +74,7 @@ public:
             int hm;
             if (std::sscanf(line.c_str(), "%lf,%lf,%*f,%*f,%*f,%d-%d-%d,%d", &lat, &lon, &year, &month, &day, &hm) == 6)
             {
-                points.push_back({glm::dvec2(lat, lon), Date(year, month, day).ToEpoch(hm)});
+                points.push_back({glm::dvec2(lat, lon), Date(year, month, day, hm).ToEpoch()});
             }
         }
         return points;

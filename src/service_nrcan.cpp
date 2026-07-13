@@ -28,7 +28,7 @@ public:
         return ServiceSampleType::FuelModel;
     }
 
-    std::vector<std::string> GetURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const override
+    std::vector<std::string> GetURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong, const Date& startDate, const Date& endDate) const override
     {
         return {kSource};
     }
@@ -38,9 +38,9 @@ public:
         return 1;
     }
 
-    void PostProcess(ServiceSampleType type, std::vector<ServicePixel>& pixels) override
+    void PostProcess(ServiceSampleType type, std::vector<ServiceSampleTypeValue>& pixels) override
     {
-        for (ServicePixel& pixel : pixels)
+        for (ServiceSampleTypeValue& pixel : pixels)
         {
             switch (pixel.U32)
             {

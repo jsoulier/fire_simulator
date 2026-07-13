@@ -36,13 +36,13 @@ FireSimulatorParams::FireSimulatorParams()
     , CanopyCover{[](int, int) { return 0.0f; }}
     , CanopyHeight{[](int, int) { return 0.0f; }}
     , CrownRatio{[](int, int) { return 0.0f; }}
-    , WindSpeed{[](int, int) { return 5.0f; }}
-    , WindDirection{[](int, int) { return 0.0f; }}
-    , MoistureOneHour{[](int, int) { return 8.0f; }}
-    , MoistureTenHour{[](int, int) { return 9.0f; }}
-    , MoistureHundredHour{[](int, int) { return 10.0f; }}
-    , MoistureLiveHerbaceous{[](int, int) { return 60.0f; }}
-    , MoistureLiveWoody{[](int, int) { return 90.0f; }}
+    , WindSpeed{[](int, int, float) { return 5.0f; }}
+    , WindDirection{[](int, int, float) { return 0.0f; }}
+    , MoistureOneHour{[](int, int, float) { return 8.0f; }}
+    , MoistureTenHour{[](int, int, float) { return 9.0f; }}
+    , MoistureHundredHour{[](int, int, float) { return 10.0f; }}
+    , MoistureLiveHerbaceous{[](int, int, float) { return 60.0f; }}
+    , MoistureLiveWoody{[](int, int, float) { return 90.0f; }}
 {
 }
 
@@ -66,10 +66,20 @@ bool FireSimulatorRun(const FireSimulatorParams& params)
         };
         std::shared_ptr<cadmium::celldevs::GridCellDEVSCoupled<FireState, double>> model = std::make_shared<FireGridCoupled>(
             "fire",
-            [resolution = params.Resolution]
+            [resolution = params.Resolution,
+             windSpeed = params.WindSpeed,
+             windDirection = params.WindDirection,
+             moistureOneHour = params.MoistureOneHour,
+             moistureTenHour = params.MoistureTenHour,
+             moistureHundredHour = params.MoistureHundredHour,
+             moistureLiveHerbaceous = params.MoistureLiveHerbaceous,
+             moistureLiveWoody = params.MoistureLiveWoody]
             (const auto& id, const auto& config)
             {
-                return std::make_shared<FireModel>(id, config, resolution);
+                return std::make_shared<FireModel>(
+                    id, config, resolution, windSpeed, windDirection,
+                    moistureOneHour, moistureTenHour, moistureHundredHour,
+                    moistureLiveHerbaceous, moistureLiveWoody);
             },
             std::move(scenario));
         {
@@ -102,16 +112,9 @@ bool FireSimulatorRun(const FireSimulatorParams& params)
                             {"Longitude", params.Longitude(x, y)},
                             {"Latitude", params.Latitude(x, y)},
                             {"Height", params.Elevation(x, y)},
-                            {"WindSpeed", params.WindSpeed(x, y)},
-                            {"WindDirection", params.WindDirection(x, y)},
                             {"CanopyCover", params.CanopyCover(x, y)},
                             {"CanopyHeight", params.CanopyHeight(x, y)},
                             {"CrownRatio", params.CrownRatio(x, y)},
-                            {"Moisture1Hour", params.MoistureOneHour(x, y)},
-                            {"Moisture10Hour", params.MoistureTenHour(x, y)},
-                            {"Moisture100Hour", params.MoistureHundredHour(x, y)},
-                            {"MoistureLiveHerbaceous", params.MoistureLiveHerbaceous(x, y)},
-                            {"MoistureLiveWoody", params.MoistureLiveWoody(x, y)}
                         }}
                     };
                     model->addCells(model->loadCellConfig(std::format("{},{}", x, y), config));

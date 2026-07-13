@@ -77,7 +77,7 @@ static void Tick()
     ImGui::NewFrame();
     if (ImGui::Begin("General"))
     {
-        serviceManager.RenderImGui();
+        serviceManager.RenderImGui(worker);
         ImGui::BeginDisabled(worker.IsRunning());
         if (ImGui::Button("Download"))
         {

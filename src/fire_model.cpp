@@ -9,25 +9,13 @@
 #include <numbers>
 #include <sstream>
 #include <string>
+#include <utility>
 
 #include "fire_fuel_model.hpp"
 #include "fire_model.hpp"
 #include "fire_profile.hpp"
 
 static constexpr float kInfinity = std::numeric_limits<float>::infinity();
-static constexpr float kDefaultMoisture1Hour = 8.0;
-static constexpr float kDefaultMoisture10Hour = 9.0;
-static constexpr float kDefaultMoisture100Hour = 10.0;
-static constexpr float kDefaultMoistureLiveHerbaceous = 60.0;
-static constexpr float kDefaultMoistureLiveWoody = 90.0;
-
-static BehaveRun& GetBehaveRun()
-{
-    thread_local FuelModels fuelModels;
-    thread_local SpeciesMasterTable speciesTable;
-    thread_local BehaveRun behave(fuelModels, speciesTable);
-    return behave;
-}
 
 FireState::FireState()
     : Status(FireCellStatus::Unburnt)
@@ -48,7 +36,14 @@ std::ostream& operator<<(std::ostream& stream, const FireState& state)
 FireModel::FireModel(
     const cadmium::celldevs::coordinates& id,
     const std::shared_ptr<const cadmium::celldevs::GridCellConfig<FireState, double>>& config,
-    float resolution)
+    float resolution,
+    std::function<float(int, int, float)> windSpeed,
+    std::function<float(int, int, float)> windDirection,
+    std::function<float(int, int, float)> moistureOneHour,
+    std::function<float(int, int, float)> moistureTenHour,
+    std::function<float(int, int, float)> moistureHundredHour,
+    std::function<float(int, int, float)> moistureLiveHerbaceous,
+    std::function<float(int, int, float)> moistureLiveWoody)
     : cadmium::celldevs::GridCell<FireState, double>(id, config)
     , Resolution{resolution}
     , FuelModel{0}
@@ -57,16 +52,16 @@ FireModel::FireModel(
     , Longitude{0.0}
     , Latitude{0.0}
     , Height{0.0f}
-    , WindSpeed{0.0f}
-    , WindDirection{0.0f}
+    , WindSpeed{std::move(windSpeed)}
+    , WindDirection{std::move(windDirection)}
+    , MoistureOneHour{std::move(moistureOneHour)}
+    , MoistureTenHour{std::move(moistureTenHour)}
+    , MoistureHundredHour{std::move(moistureHundredHour)}
+    , MoistureLiveHerbaceous{std::move(moistureLiveHerbaceous)}
+    , MoistureLiveWoody{std::move(moistureLiveWoody)}
     , CanopyCover{0.0f}
     , CanopyHeight{0.0f}
     , CrownRatio{0.0f}
-    , Moisture1Hour{kDefaultMoisture1Hour}
-    , Moisture10Hour{kDefaultMoisture10Hour}
-    , Moisture100Hour{kDefaultMoisture100Hour}
-    , MoistureLiveHerbaceous{kDefaultMoistureLiveHerbaceous}
-    , MoistureLiveWoody{kDefaultMoistureLiveWoody}
 {
     const nlohmann::json& cellConfig = config->rawCellConfig;
     assert(cellConfig.is_object());
@@ -76,16 +71,9 @@ FireModel::FireModel(
     Longitude = cellConfig.value("Longitude", Longitude);
     Latitude = cellConfig.value("Latitude", Latitude);
     Height = cellConfig.value("Height", Height);
-    WindSpeed = cellConfig.value("WindSpeed", WindSpeed);
-    WindDirection = cellConfig.value("WindDirection", WindDirection);
     CanopyCover = cellConfig.value("CanopyCover", CanopyCover);
     CanopyHeight = cellConfig.value("CanopyHeight", CanopyHeight);
     CrownRatio = cellConfig.value("CrownRatio", CrownRatio);
-    Moisture1Hour = cellConfig.value("Moisture1Hour", Moisture1Hour);
-    Moisture10Hour = cellConfig.value("Moisture10Hour", Moisture10Hour);
-    Moisture100Hour = cellConfig.value("Moisture100Hour", Moisture100Hour);
-    MoistureLiveHerbaceous = cellConfig.value("MoistureLiveHerbaceous", MoistureLiveHerbaceous);
-    MoistureLiveWoody = cellConfig.value("MoistureLiveWoody", MoistureLiveWoody);
 }
 
 std::ostream& operator<<(std::ostream& stream, const FireModel& model)
@@ -96,6 +84,11 @@ std::ostream& operator<<(std::ostream& stream, const FireModel& model)
 bool FireModel::isComplete() const
 {
     return state.Status == FireCellStatus::Burnt;
+}
+
+float FireModel::GetTime() const
+{
+    return clock / 60.0;
 }
 
 FireState FireModel::localComputation(FireState state, const cadmium::celldevs::Neighborhood<cadmium::celldevs::coordinates, FireState, double>& neighborhood) const
@@ -147,14 +140,14 @@ FireState FireModel::localComputation(FireState state, const cadmium::celldevs::
             {
                 continue;
             }
-            int deltaE = id[0] - neighborId[0];
-            int deltaS = id[1] - neighborId[1];
+            int deltaE = id.x - neighborId.x;
+            int deltaS = id.y - neighborId.y;
             double bearing = std::atan2(double(deltaE), double(-deltaS)) * 180.0 / std::numbers::pi;
             if (bearing < 0.0)
             {
                 bearing += 360.0;
             }
-            float spreadRate = GetDirectionSpreadRate(float(bearing));
+            float spreadRate = GetDirectionalSpreadRate(float(bearing));
             if (spreadRate <= 0.0f)
             {
                 continue;
@@ -192,36 +185,42 @@ std::string FireModel::logState() const
     return stream.str();
 }
 
+BehaveRun& FireModel::GetBehaveRun() const
+{
+    thread_local FuelModels fuelModels;
+    thread_local SpeciesMasterTable speciesTable;
+    thread_local BehaveRun behave(fuelModels, speciesTable);
+    float time = GetTime();
+    float moistureOneHour = MoistureOneHour(id.x, id.y, time);
+    float moistureTenHour = MoistureTenHour(id.x, id.y, time);
+    float moistureHundredHour = MoistureHundredHour(id.x, id.y, time);
+    float moistureLiveHerbaceous = MoistureLiveHerbaceous(id.x, id.y, time);
+    float moistureLiveWoody = MoistureLiveWoody(id.x, id.y, time);
+    float windSpeed = WindSpeed(id.x, id.y, time);
+    float windDirection = WindDirection(id.x, id.y, time);
+    behave.surface.updateSurfaceInputs(
+        FuelModel,
+        moistureOneHour, moistureTenHour, moistureHundredHour,
+        moistureLiveHerbaceous, moistureLiveWoody, FractionUnits::Percent,
+        windSpeed, SpeedUnits::MilesPerHour, WindHeightInputMode::TenMeter,
+        windDirection, WindAndSpreadOrientationMode::RelativeToNorth,
+        Slope, SlopeUnits::Degrees, Aspect,
+        CanopyCover, FractionUnits::Fraction,
+        CanopyHeight, LengthUnits::Meters,
+        CrownRatio, FractionUnits::Fraction);
+    return behave;
+}
+
 float FireModel::GetMaxSpreadRate() const
 {
     BehaveRun& behave = GetBehaveRun();
-    behave.surface.updateSurfaceInputs(
-        FuelModel,
-        Moisture1Hour, Moisture10Hour, Moisture100Hour,
-        MoistureLiveHerbaceous, MoistureLiveWoody, FractionUnits::Percent,
-        WindSpeed, SpeedUnits::MilesPerHour, WindHeightInputMode::TenMeter,
-        WindDirection, WindAndSpreadOrientationMode::RelativeToNorth,
-        Slope, SlopeUnits::Degrees, Aspect,
-        CanopyCover, FractionUnits::Fraction,
-        CanopyHeight, LengthUnits::Meters,
-        CrownRatio, FractionUnits::Fraction);
     behave.surface.doSurfaceRunInDirectionOfMaxSpread();
-    return float(behave.surface.getSpreadRate(SpeedUnits::MetersPerMinute));
+    return behave.surface.getSpreadRate(SpeedUnits::MetersPerMinute);
 }
 
-float FireModel::GetDirectionSpreadRate(float bearing) const
+float FireModel::GetDirectionalSpreadRate(float bearing) const
 {
     BehaveRun& behave = GetBehaveRun();
-    behave.surface.updateSurfaceInputs(
-        FuelModel,
-        Moisture1Hour, Moisture10Hour, Moisture100Hour,
-        MoistureLiveHerbaceous, MoistureLiveWoody, FractionUnits::Percent,
-        WindSpeed, SpeedUnits::MilesPerHour, WindHeightInputMode::TenMeter,
-        WindDirection, WindAndSpreadOrientationMode::RelativeToNorth,
-        Slope, SlopeUnits::Degrees, Aspect,
-        CanopyCover, FractionUnits::Fraction,
-        CanopyHeight, LengthUnits::Meters,
-        CrownRatio, FractionUnits::Fraction);
     behave.surface.doSurfaceRunInDirectionOfInterest(double(bearing), SurfaceFireSpreadDirectionMode::FromIgnitionPoint);
-    return float(behave.surface.getSpreadRateInDirectionOfInterest(SpeedUnits::MetersPerMinute));
+    return behave.surface.getSpreadRateInDirectionOfInterest(SpeedUnits::MetersPerMinute);
 }

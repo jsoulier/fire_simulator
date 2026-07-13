@@ -49,11 +49,11 @@ public:
         for (auto& [type, value] : Values)
         {
             std::string sliderLabel = std::format("{}##Custom", ServiceSampleTypeToString(type));
-            if (ServiceSampleTypeToPixelType(type) == ServicePixelType::U32)
+            if (ServiceSampleTypeToFormat(type) == ServiceSampleTypeFormat::U32)
             {
                 ImGui::InputScalar(sliderLabel.c_str(), ImGuiDataType_U32, &value.U32);
             }
-            else if (ServiceSampleTypeToPixelType(type) == ServicePixelType::F32)
+            else if (ServiceSampleTypeToFormat(type) == ServiceSampleTypeFormat::F32)
             {
                 ImGui::InputFloat(sliderLabel.c_str(), &value.F32);
             }
@@ -64,17 +64,17 @@ public:
         }
     }
 
-    ServicePixel GetPixel(ServiceSampleType type, const glm::dvec2& latLong) const override
+    ServiceSampleTypeValue GetValue(ServiceSampleType type, const glm::dvec2& latLong, float time) const override
     {
         return Values.at(type);
     }
 
-    ServicePixel GetPixel(ServiceSampleType type, int x, int y) const override
+    ServiceSampleTypeValue GetValue(ServiceSampleType type, int x, int y, float time) const override
     {
-        return GetPixel(type, glm::dvec2{});
+        return GetValue(type, glm::dvec2{}, time);
     }
 
-    ankerl::unordered_dense::map<ServiceSampleType, ServicePixel> Values;
+    ankerl::unordered_dense::map<ServiceSampleType, ServiceSampleTypeValue> Values;
 };
 
 std::unique_ptr<Service> ServiceCreateCustom()

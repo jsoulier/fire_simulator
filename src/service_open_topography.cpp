@@ -35,7 +35,7 @@ public:
         return ServiceSampleType::Elevation;
     }
 
-    std::vector<std::string> GetURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong) const override
+    std::vector<std::string> GetURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong, const Date& startDate, const Date& endDate) const override
     {
         const std::string apiKey = AuthGetKey("open_topography.txt");
         if (apiKey.empty())
