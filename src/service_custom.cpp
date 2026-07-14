@@ -54,6 +54,15 @@ public:
             case ServiceSampleType::MoistureLiveWoody:
                 value.F32 = 90.0f;
                 break;
+            case ServiceSampleType::Temperature:
+                value.F32 = 20.0f;
+                break;
+            case ServiceSampleType::RelativeHumidity:
+                value.F32 = 30.0f;
+                break;
+            case ServiceSampleType::Precipitation:
+                value.F32 = 0.0f;
+                break;
             default:
                 SDL_assert(false);
                 break;

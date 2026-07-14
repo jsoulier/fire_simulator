@@ -30,6 +30,9 @@ enum class ServiceSampleType
     MoistureHundredHour = 1 << 11,
     MoistureLiveHerbaceous = 1 << 12,
     MoistureLiveWoody = 1 << 13,
+    Temperature = 1 << 14,
+    RelativeHumidity = 1 << 15,
+    Precipitation = 1 << 16,
     All =
         FuelModel |
         Elevation |
@@ -44,7 +47,10 @@ enum class ServiceSampleType
         MoistureTenHour |
         MoistureHundredHour |
         MoistureLiveHerbaceous |
-        MoistureLiveWoody,
+        MoistureLiveWoody |
+        Temperature |
+        RelativeHumidity |
+        Precipitation,
 };
 
 constexpr ServiceSampleType operator|(ServiceSampleType a, ServiceSampleType b)
@@ -107,11 +113,17 @@ static constexpr const char* kServiceSampleTypeStrings[] =
     "Moisture 100 Hour",
     "Moisture Live Herbaceous",
     "Moisture Live Woody",
+    "Temperature",
+    "Relative Humidity",
+    "Precipitation",
 };
 
 static constexpr ServiceSampleTypeFormat kServiceSampleTypeFormats[] =
 {
     ServiceSampleTypeFormat::U32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
+    ServiceSampleTypeFormat::F32,
     ServiceSampleTypeFormat::F32,
     ServiceSampleTypeFormat::F32,
     ServiceSampleTypeFormat::F32,
@@ -136,6 +148,9 @@ static constexpr ServiceSampleTypeTime kServiceSampleTypeTimes[] =
     ServiceSampleTypeTime::Static,
     ServiceSampleTypeTime::Static,
     ServiceSampleTypeTime::Static,
+    ServiceSampleTypeTime::Dynamic,
+    ServiceSampleTypeTime::Dynamic,
+    ServiceSampleTypeTime::Dynamic,
     ServiceSampleTypeTime::Dynamic,
     ServiceSampleTypeTime::Dynamic,
     ServiceSampleTypeTime::Dynamic,

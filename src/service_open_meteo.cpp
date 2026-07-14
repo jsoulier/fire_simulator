@@ -28,7 +28,12 @@ public:
 
     ServiceSampleType GetSupportedTypes() const override
     {
-        return ServiceSampleType::WindSpeed | ServiceSampleType::WindDirection;
+        return ServiceSampleType::WindSpeed | ServiceSampleType::WindDirection | ServiceSampleType::Temperature | ServiceSampleType::RelativeHumidity | ServiceSampleType::Precipitation;
+    }
+
+    ServiceSampleType GetRequiredSampleTypes(ServiceSampleType types) const override
+    {
+        return ServiceSampleType::Temperature | ServiceSampleType::RelativeHumidity | ServiceSampleType::Precipitation;
     }
 
     std::vector<std::string> GetURLs(const glm::dvec2& min, const glm::dvec2& max, const Date& start, const Date& end) const override
@@ -36,7 +41,7 @@ public:
         return
         {
             std::format(
-                "https://archive-api.open-meteo.com/v1/archive?latitude={:.6f}&longitude={:.6f}&start_date={}&end_date={}&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=mph",
+                "https://archive-api.open-meteo.com/v1/archive?latitude={:.6f}&longitude={:.6f}&start_date={}&end_date={}&hourly=wind_speed_10m,wind_direction_10m,temperature_2m,relative_humidity_2m,precipitation&wind_speed_unit=mph&timezone=UTC",
                 (min.x + max.x) * 0.5,
                 (min.y + max.y) * 0.5,
                 start.ToString(),
@@ -55,6 +60,15 @@ public:
             break;
         case ServiceSampleType::WindDirection:
             name = "wind_direction_10m";
+            break;
+        case ServiceSampleType::Temperature:
+            name = "temperature_2m";
+            break;
+        case ServiceSampleType::RelativeHumidity:
+            name = "relative_humidity_2m";
+            break;
+        case ServiceSampleType::Precipitation:
+            name = "precipitation";
             break;
         default:
             SDL_assert(false);

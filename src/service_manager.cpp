@@ -41,6 +41,9 @@ ServiceManager::ServiceManager()
     ServiceIndices[ServiceSampleType::Elevation] = 2;
     ServiceIndices[ServiceSampleType::Slope] = 2;
     ServiceIndices[ServiceSampleType::Aspect] = 2;
+    ServiceIndices[ServiceSampleType::Temperature] = 10;
+    ServiceIndices[ServiceSampleType::RelativeHumidity] = 10;
+    ServiceIndices[ServiceSampleType::Precipitation] = 10;
     References.emplace_back(ReferenceCreateFIRMS());
     References.emplace_back(ReferenceCreateEONET());
 }

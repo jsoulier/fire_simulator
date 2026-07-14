@@ -1,3 +1,4 @@
 [ ] nlohmann json macros to serialize params and services
 [ ] stochastic simulation model
 [ ] clang-format
+[ ] early out for services that don't support a region (e.g. NRCan doesn't support anything but Canada)
