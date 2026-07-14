@@ -174,7 +174,6 @@ void Service::Download(
         {
             if (values.empty())
             {
-                spdlog::error("Failed to get dynamic values for {}: {}", ServiceSampleTypeToString(type), GetName());
                 continue;
             }
             std::stable_sort(values.begin(), values.end(), [](const ServiceSampleTypeDynamicValue& a, const ServiceSampleTypeDynamicValue& b)
@@ -200,6 +199,22 @@ void Service::Download(
                 continue;
             }
             DynamicData[type] = std::move(data);
+        }
+        for (int i = 0; i < 32; i++)
+        {
+            const ServiceSampleType type = ServiceSampleType(1 << i);
+            if ((dynamicTypes & type) != ServiceSampleType{})
+            {
+                DeriveDynamicData(type);
+            }
+        }
+        for (int i = 0; i < 32; i++)
+        {
+            const ServiceSampleType type = ServiceSampleType(1 << i);
+            if ((dynamicTypes & type) != ServiceSampleType{} && !DynamicData.contains(type))
+            {
+                spdlog::error("Failed to get dynamic values for {}: {}", ServiceSampleTypeToString(type), GetName());
+            }
         }
         types = types & ~dynamicTypes;
     }
@@ -363,7 +378,7 @@ void Service::Download(
         }
         {
             TimerBlock(std::format("{} {} derive", GetName(), ServiceSampleTypeToString(type)));
-            Derive(type, lowResolution, lowResolutionDirectory);
+            DeriveStaticData(type, lowResolution, lowResolutionDirectory);
         }
         StaticSampleData staticData;
         {

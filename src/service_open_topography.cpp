@@ -70,7 +70,7 @@ public:
         return 1;
     }
 
-    void Derive(ServiceSampleType type, GDALDatasetH lowResolution, const std::string& directory) override
+    void DeriveStaticData(ServiceSampleType type, GDALDatasetH lowResolution, const std::string& directory) override
     {
         if (type == ServiceSampleType::Elevation)
         {

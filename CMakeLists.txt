@@ -42,6 +42,7 @@ add_library(fire_simulator_core
     src/fire_model_logger.cpp
     src/fire_results.cpp
     src/fire_simulator.cpp
+    src/fuel_moisture.cpp
     src/http.cpp
     src/image_viewer.cpp
     src/math.cpp

@@ -196,8 +196,9 @@ public:
 protected:
     virtual std::vector<std::string> GetURLs(const glm::dvec2& minLatLong, const glm::dvec2& maxLatLong, const Date& startDate, const Date& endDate) const { return {}; }
     virtual std::vector<ServiceSampleTypeDynamicValue> GetDynamicValues(const std::string& response, ServiceSampleType type) const { return {}; }
+    virtual void DeriveDynamicData(ServiceSampleType type) {}
     virtual int GetBand(ServiceSampleType type) const { return 0; }
-    virtual void Derive(ServiceSampleType type, GDALDatasetH lowResolution, const std::string& directory) {}
+    virtual void DeriveStaticData(ServiceSampleType type, GDALDatasetH lowResolution, const std::string& directory) {}
     virtual void PostProcess(ServiceSampleType type, std::vector<ServiceSampleTypeValue>& pixels) {}
     ServiceSampleTypeValue GetDynamicValue(ServiceSampleType type, float time) const;
     void DEMProcessing(GDALDatasetH elevation, const std::string& directory, ServiceSampleType type);

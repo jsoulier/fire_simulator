@@ -9,8 +9,10 @@
 #include <format>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "fuel_moisture.hpp"
 #include "service.hpp"
 
 class ServiceOpenMeteo : public Service
@@ -28,12 +30,34 @@ public:
 
     ServiceSampleType GetSupportedTypes() const override
     {
-        return ServiceSampleType::WindSpeed | ServiceSampleType::WindDirection | ServiceSampleType::Temperature | ServiceSampleType::RelativeHumidity | ServiceSampleType::Precipitation;
+        return ServiceSampleType::WindSpeed |
+            ServiceSampleType::WindDirection |
+            ServiceSampleType::MoistureOneHour |
+            ServiceSampleType::MoistureTenHour |
+            ServiceSampleType::MoistureHundredHour |
+            ServiceSampleType::MoistureLiveHerbaceous |
+            ServiceSampleType::MoistureLiveWoody |
+            ServiceSampleType::Temperature |
+            ServiceSampleType::RelativeHumidity |
+            ServiceSampleType::Precipitation;
     }
 
     ServiceSampleType GetRequiredSampleTypes(ServiceSampleType types) const override
     {
-        return ServiceSampleType::Temperature | ServiceSampleType::RelativeHumidity | ServiceSampleType::Precipitation;
+        static constexpr ServiceSampleType kTypes =
+            ServiceSampleType::MoistureOneHour |
+            ServiceSampleType::MoistureTenHour |
+            ServiceSampleType::MoistureHundredHour |
+            ServiceSampleType::MoistureLiveHerbaceous |
+            ServiceSampleType::MoistureLiveWoody;
+        if ((types & kTypes) != ServiceSampleType{})
+        {
+            return ServiceSampleType::Temperature | ServiceSampleType::RelativeHumidity | ServiceSampleType::Precipitation;
+        }
+        else
+        {
+            return ServiceSampleType{};
+        }
     }
 
     std::vector<std::string> GetURLs(const glm::dvec2& min, const glm::dvec2& max, const Date& start, const Date& end) const override
@@ -41,7 +65,8 @@ public:
         return
         {
             std::format(
-                "https://archive-api.open-meteo.com/v1/archive?latitude={:.6f}&longitude={:.6f}&start_date={}&end_date={}&hourly=wind_speed_10m,wind_direction_10m,temperature_2m,relative_humidity_2m,precipitation&wind_speed_unit=mph&timezone=UTC",
+                "https://archive-api.open-meteo.com/v1/archive?latitude={:.6f}&longitude={:.6f}&start_date={}&end_date={}&"
+                "hourly=wind_speed_10m,wind_direction_10m,temperature_2m,relative_humidity_2m,precipitation&wind_speed_unit=mph&timezone=UTC",
                 (min.x + max.x) * 0.5,
                 (min.y + max.y) * 0.5,
                 start.ToString(),
@@ -70,6 +95,12 @@ public:
         case ServiceSampleType::Precipitation:
             name = "precipitation";
             break;
+        case ServiceSampleType::MoistureOneHour:
+        case ServiceSampleType::MoistureTenHour:
+        case ServiceSampleType::MoistureHundredHour:
+        case ServiceSampleType::MoistureLiveHerbaceous:
+        case ServiceSampleType::MoistureLiveWoody:
+            return {};
         default:
             SDL_assert(false);
             return {};
@@ -100,6 +131,33 @@ public:
             values.push_back(value);
         }
         return values;
+    }
+
+    void DeriveDynamicData(ServiceSampleType type) override
+    {
+        if (type != ServiceSampleType::Temperature)
+        {
+            return;
+        }
+        const DynamicSampleData& temperature = DynamicData.at(ServiceSampleType::Temperature);
+        const DynamicSampleData& humidity = DynamicData.at(ServiceSampleType::RelativeHumidity);
+        const DynamicSampleData& precipitation = DynamicData.at(ServiceSampleType::Precipitation);
+        SDL_assert(temperature.Samples.size() == humidity.Samples.size());
+        SDL_assert(temperature.Samples.size() == precipitation.Samples.size());
+        SetMoisture(ServiceSampleType::MoistureOneHour, FuelMoistureCalculateDead(temperature.Samples, humidity.Samples, precipitation.Samples, 1.0));
+        SetMoisture(ServiceSampleType::MoistureTenHour, FuelMoistureCalculateDead(temperature.Samples, humidity.Samples, precipitation.Samples, 10.0));
+        SetMoisture(ServiceSampleType::MoistureHundredHour, FuelMoistureCalculateDead(temperature.Samples, humidity.Samples, precipitation.Samples, 100.0));
+        SetMoisture(ServiceSampleType::MoistureLiveHerbaceous, FuelMoistureCalculateLive(temperature.Samples, humidity.Samples, precipitation.Samples, 0.0, ServiceSampleType::MoistureLiveHerbaceous));
+        SetMoisture(ServiceSampleType::MoistureLiveWoody, FuelMoistureCalculateLive(temperature.Samples, humidity.Samples, precipitation.Samples, 0.0, ServiceSampleType::MoistureLiveWoody));
+    }
+
+    void SetMoisture(ServiceSampleType type, std::vector<ServiceSampleTypeValue> moisture)
+    {
+        const DynamicSampleData& temperature = DynamicData.at(ServiceSampleType::Temperature);
+        DynamicSampleData& data = DynamicData[type];
+        data.Start = temperature.Start;
+        data.Resolution = temperature.Resolution;
+        data.Samples = std::move(moisture);
     }
 };
 
