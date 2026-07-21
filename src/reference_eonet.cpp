@@ -17,6 +17,8 @@ static constexpr const char* kURL = "https://eonet.gsfc.nasa.gov/api/v3/events";
 
 class ReferenceEONET : public Reference
 {
+    SAVEPOINT_POLY(ReferenceEONET)
+
 public:
     const char* GetName() const override
     {

@@ -22,9 +22,10 @@ add_subdirectory(lib/NFDRS4)
 add_subdirectory(lib/SDL)
 add_subdirectory(lib/behave)
 add_subdirectory(lib/cadmium)
-add_subdirectory(lib/geo_names)
+add_subdirectory(lib/geonames)
 add_subdirectory(lib/glm)
 add_subdirectory(lib/imgui)
+add_subdirectory(lib/savepoint)
 add_subdirectory(lib/spdlog)
 add_subdirectory(lib/tracy)
 
@@ -76,10 +77,11 @@ target_link_libraries(fire_simulator_core PUBLIC
     SDL3::SDL3
     behave
     cadmium
-    geo_names
+    geonames
     glm::glm
     imgui
     mimalloc-static
+    savepoint::savepoint
     spdlog::spdlog
 )
 target_compile_definitions(fire_simulator_core PUBLIC GLM_ENABLE_EXPERIMENTAL)

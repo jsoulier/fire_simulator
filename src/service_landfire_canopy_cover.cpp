@@ -5,6 +5,8 @@
 
 class ServiceLandfireCanopyCover : public ServiceLandfire
 {
+    SAVEPOINT_POLY(ServiceLandfireCanopyCover)
+
 public:
     const char* GetName() const override
     {

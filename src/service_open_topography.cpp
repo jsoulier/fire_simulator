@@ -19,6 +19,8 @@ static constexpr double kMinimumSizeMeters = 250.0; // "Error: Each side of the 
 
 class ServiceOpenTopography : public Service
 {
+    SAVEPOINT_POLY(ServiceOpenTopography)
+
 public:
     const char* GetName() const override
     {

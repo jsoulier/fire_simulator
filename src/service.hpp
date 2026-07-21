@@ -3,6 +3,7 @@
 #include <gdal_fwd.h>
 #include <glm/glm.hpp>
 #include <imgui.h>
+#include <savepoint/savepoint.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -155,10 +156,11 @@ ServiceSampleTypeFormat ServiceSampleTypeToFormat(ServiceSampleType type);
 
 class ServiceContext;
 
-class Service
+class Service : public SavepointPoly
 {
 public:
     virtual ~Service() = default;
+    virtual void Visit(SavepointVisitor& visitor) {}
     virtual const char* GetName() const = 0;
     virtual const char* GetDisplayName() const = 0;
     virtual ServiceSampleType GetSupportedTypes() const = 0;

@@ -4,6 +4,8 @@
 
 class ServiceLandfireSlope : public ServiceLandfire
 {
+    SAVEPOINT_POLY(ServiceLandfireSlope)
+
 public:
     const char* GetName() const override
     {

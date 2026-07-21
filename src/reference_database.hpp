@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <imgui.h>
+#include <savepoint/savepoint.hpp>
 
 #include <string_view>
 #include <ctime>
@@ -13,6 +14,7 @@ class ReferenceDatabase
 {
 public:
     ReferenceDatabase();
+    void Visit(SavepointVisitor& visitor);
     void RenderImGui();
     const glm::dvec2& GetMinLatLong() const;
     const glm::dvec2& GetMaxLatLong() const;
@@ -34,8 +36,8 @@ private:
 
     glm::dvec2 MinLatLong;
     glm::dvec2 MaxLatLong;
-    std::tm StartDate;
-    std::tm EndDate;
+    Date StartDate;
+    Date EndDate;
     ImGuiTextFilter Filter;
     std::vector<Fire> Fires;
 };

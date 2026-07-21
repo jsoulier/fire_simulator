@@ -20,6 +20,8 @@ static constexpr int kMaxDaysPerURL = 5;
 
 class ReferenceFIRMS : public Reference
 {
+    SAVEPOINT_POLY(ReferenceFIRMS)
+
 public:
     const char* GetName() const override
     {

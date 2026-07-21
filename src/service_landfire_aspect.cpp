@@ -4,6 +4,8 @@
 
 class ServiceLandfireAspect : public ServiceLandfire
 {
+    SAVEPOINT_POLY(ServiceLandfireAspect)
+
 public:
     const char* GetName() const override
     {

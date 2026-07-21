@@ -5,6 +5,8 @@
 
 class ServiceLandfireFuelModel : public ServiceLandfire
 {
+    SAVEPOINT_POLY(ServiceLandfireFuelModel)
+
 public:
     const char* GetName() const override
     {

@@ -25,6 +25,8 @@ static constexpr int kPrefixDays = 56; // extra days required to compute moistur
 
 class ServiceOpenMeteo : public Service
 {
+    SAVEPOINT_POLY(ServiceOpenMeteo)
+
 public:
     const char* GetName() const override
     {
@@ -202,13 +204,14 @@ public:
                 fuelModelCounts[value]++;
             }
         }
-        // TODO: support per-cell weather calculations
+        // TODO: remove averages when we support per-cell weather calculations
         const auto mode = std::max_element(fuelModelCounts.begin(), fuelModelCounts.end());
         SDL_assert(mode != fuelModelCounts.end() && *mode > 0);
         const FireFuelModelType modeFuelModel = std::distance(fuelModelCounts.begin(), mode);
         const char fuelModel = FireFuelModelToNFDRS(modeFuelModel);
         NFDRS4 nfdrs;
         nfdrs.Init(latitude, fuelModel, 1, 0.0, true, true, false, 100, 13);
+        // TODO: move to ImGui parameters (see ServiceCustom)
         nfdrs.SetHerbGSIparams(
             1.0,         // maximum GSI
             0.2,         // greenup threshold
@@ -231,8 +234,8 @@ public:
             0.2,         // greenup threshold
             -2.0,        // minimum temperature lower limit (celsius)
             5.0,         // minimum temperature upper limit (celsius)
-            900.0,       // vpd lower limit (pa)
-            4100.0,      // vpd upper limit (pa)
+            900.0,       // vpd lower limit (pascals)
+            4100.0,      // vpd upper limit (pascals)
             36000.0,     // daylight lower limit (seconds)
             39600.0,     // daylight upper limit (seconds)
             28,          // moving average period (days) (number of days to smooth GSI)

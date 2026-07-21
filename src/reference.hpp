@@ -1,5 +1,6 @@
 #pragma once
 
+#include <savepoint/savepoint.hpp>
 #include <glm/glm.hpp>
 
 #include <memory>
@@ -17,10 +18,11 @@ struct ReferencePoint
     double Time;
 };
 
-class Reference
+class Reference : public SavepointPoly
 {
 public:
     virtual ~Reference() = default;
+    virtual void Visit(SavepointVisitor& visitor) {}
     virtual const char* GetName() const = 0;
     virtual const char* GetDisplayName() const = 0;
     Future<FireResults> Fetch(Worker& worker, const ReferenceDatabase& database, double resolution);

@@ -8,9 +8,12 @@
 
 #include "service.hpp"
 #include "service_context.hpp"
+#include "version.hpp"
 
 class ServiceCustom : public Service
 {
+    SAVEPOINT_POLY(ServiceCustom)
+
 public:
     ServiceCustom()
     {
@@ -75,6 +78,12 @@ public:
             }
             Values[ServiceSampleTypeToIndex(type)] = value;
         }
+    }
+
+    void Visit(SavepointVisitor& visitor) override
+    {
+        Service::Visit(visitor);
+        visitor(Values, {0, 0, 1});
     }
 
     const char* GetName() const override

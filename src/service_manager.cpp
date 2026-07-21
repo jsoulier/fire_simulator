@@ -8,9 +8,10 @@
 
 #include "math.hpp"
 #include "service_manager.hpp"
+#include "version.hpp"
 
 static const std::filesystem::path kBasePath = SDL_GetBasePath();
-static const std::filesystem::path kFireSimulatorPath = kBasePath / "fire_simulator_results.csv";
+static const std::filesystem::path kSavepointPath = kBasePath / "fire_simulator_results.csv";
 
 ServiceManager::ServiceManager()
     : ReferenceIndex{0}
@@ -39,6 +40,17 @@ ServiceManager::ServiceManager()
     ServiceIndices[ServiceSampleTypeToIndex(ServiceSampleType::Precipitation)] = 10;
     References.emplace_back(ReferenceCreateFIRMS());
     References.emplace_back(ReferenceCreateEONET());
+}
+
+void ServiceManager::Visit(SavepointVisitor& visitor)
+{
+    visitor(Services, {0, 0, 1});
+    visitor(ServiceIndices, {0, 0, 1});
+    visitor(References, {0, 0, 1});
+    visitor(ReferenceIndex, {0, 0, 1});
+    visitor(Database, {0, 0, 1});
+    visitor(TileResolution, {0, 0, 1});
+    visitor(TimeResolution, {0, 0, 1});
 }
 
 std::unique_ptr<Reference>& ServiceManager::GetReference()
@@ -200,12 +212,12 @@ Future<FireResults> ServiceManager::Simulate(Worker& worker, ankerl::unordered_d
         Simulator.SetMoistureHundredHour(getDynamicPixel(ServiceSampleType::MoistureHundredHour));
         Simulator.SetMoistureLiveHerbaceous(getDynamicPixel(ServiceSampleType::MoistureLiveHerbaceous));
         Simulator.SetMoistureLiveWoody(getDynamicPixel(ServiceSampleType::MoistureLiveWoody));
-        Simulator.SetOutPath(kFireSimulatorPath.string());
+        Simulator.SetOutPath(kSavepointPath.string());
         if (!Simulator.Simulate())
         {
             return results;
         }
-        results.Load(kFireSimulatorPath.string(), size);
+        results.Load(kSavepointPath.string(), size);
         return results;
     });
 }

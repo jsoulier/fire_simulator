@@ -12,6 +12,8 @@ static constexpr const char* kSource =
 
 class ServiceNRCan : public Service
 {
+    SAVEPOINT_POLY(ServiceNRCan)
+
 public:
     const char* GetName() const override
     {

@@ -1,5 +1,6 @@
 #include <SDL3/SDL.h>
 #include <imgui.h>
+#include <savepoint/savepoint.hpp>
 #include <spdlog/sinks/callback_sink.h>
 #include <spdlog/spdlog.h>
 
@@ -16,6 +17,10 @@ Console::Console()
     {
         spdlog::info("{}", text);
     }, nullptr);
+    SavepointSetLogFunction([](const std::string_view& text)
+    {
+        spdlog::info("{}", text);
+    });
     auto sink = std::make_shared<spdlog::sinks::callback_sink_mt>([this](const spdlog::details::log_msg& text)
     {
         std::scoped_lock lock(Mutex);

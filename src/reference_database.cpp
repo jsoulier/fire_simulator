@@ -1,5 +1,5 @@
 #include <ImGuiDatePicker.hpp>
-#include <geo_names_imgui.hpp>
+#include <geonames_imgui.hpp>
 #include <glm/glm.hpp>
 #include <imgui.h>
 
@@ -12,8 +12,8 @@ ReferenceDatabase::ReferenceDatabase()
     , MaxLatLong{45.50, -75.55}
 {
     // TODO: create offline database similar to GeoNames
-    StartDate = Date(2021, 7, 13).ToTm();
-    EndDate = Date(2021, 7, 23).ToTm();
+    StartDate = Date(2021, 7, 13);
+    EndDate = Date(2021, 7, 23);
     Fires = {
         {"Dixie Fire (2021)", 39.877, -121.381, 0.35, Date(2021, 7, 13), Date(2021, 7, 23)},
         {"Caldor Fire (2021)", 38.610, -120.530, 0.40, Date(2021, 8, 14), Date(2021, 8, 24)},
@@ -32,12 +32,20 @@ ReferenceDatabase::ReferenceDatabase()
     };
 }
 
+void ReferenceDatabase::Visit(SavepointVisitor& visitor)
+{
+    visitor(MinLatLong);
+    visitor(MaxLatLong);
+    visitor(StartDate);
+    visitor(EndDate);
+}
+
 void ReferenceDatabase::Select(const Fire& fire)
 {
     MinLatLong = {fire.Latitude - fire.Margin, fire.Longitude - fire.Margin};
     MaxLatLong = {fire.Latitude + fire.Margin, fire.Longitude + fire.Margin};
-    StartDate = fire.Start.ToTm();
-    EndDate = fire.End.ToTm();
+    StartDate = fire.Start;
+    EndDate = fire.End;
 }
 
 void ReferenceDatabase::RenderImGui()
@@ -53,8 +61,16 @@ void ReferenceDatabase::RenderImGui()
     ImGui::InputDouble("Min Longitude", &MinLatLong.y);
     ImGui::InputDouble("Max Latitude", &MaxLatLong.x);
     ImGui::InputDouble("Max Longitude", &MaxLatLong.y);
-    ImGui::DatePicker("Start Date", StartDate);
-    ImGui::DatePicker("End Date", EndDate);
+    std::tm startDate = StartDate.ToTm();
+    if (ImGui::DatePicker("Start Date", startDate))
+    {
+        StartDate = Date(startDate);
+    }
+    std::tm endDate = EndDate.ToTm();
+    if (ImGui::DatePicker("End Date", endDate))
+    {
+        EndDate = Date(endDate);
+    }
     Filter.Draw("##ReferenceDatabaseSearch");
     ImGui::BeginChild("##ReferenceDatabaseFires", ImVec2(0, ImGui::GetTextLineHeightWithSpacing() * 6), true);
     for (const Fire& fire : Fires)
@@ -80,10 +96,10 @@ const glm::dvec2& ReferenceDatabase::GetMaxLatLong() const
 
 Date ReferenceDatabase::GetStartDate() const
 {
-    return Date(StartDate);
+    return StartDate;
 }
 
 Date ReferenceDatabase::GetEndDate() const
 {
-    return Date(EndDate);
+    return EndDate;
 }

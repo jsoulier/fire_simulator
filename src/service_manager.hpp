@@ -3,6 +3,7 @@
 #include <ankerl/unordered_dense.h>
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
+#include <savepoint/savepoint.hpp>
 
 #include <array>
 #include <iterator>
@@ -23,6 +24,7 @@ class ServiceManager
 {
 public:
     ServiceManager();
+    void Visit(SavepointVisitor& visitor);
     std::unique_ptr<Reference>& GetReference();
     ServiceSampleTypeValue GetValue(ServiceSampleType type, const glm::dvec2& latLong, float time) const;
     ServiceSampleTypeValue GetValue(ServiceSampleType type, int x, int y, float time) const;

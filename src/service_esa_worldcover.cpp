@@ -13,6 +13,8 @@ static constexpr const char* kURL = "https://esa-worldcover.s3.eu-central-1.amaz
 
 class ServiceESAWorldCover : public Service
 {
+    SAVEPOINT_POLY(ServiceESAWorldCover)
+
 public:
     const char* GetName() const override
     {

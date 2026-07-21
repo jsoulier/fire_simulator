@@ -1,4 +1,6 @@
-[ ] nlohmann json macros to serialize params and services
+[ ] validate that the fuel models are the correct types
 [ ] stochastic simulation model
 [ ] clang-format
 [ ] early out for services that don't support a region (e.g. NRCan doesn't support anything but Canada)
+[ ] add a scoring system for comparing the model to the actual results
+[ ] add a CLI for getting a score without clicking through the UI
